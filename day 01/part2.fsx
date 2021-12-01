@@ -15,7 +15,7 @@ let example =
 
 let isIncrease (n1, n2) = n1 < n2
 
-let solve input =
+let solve (input: string seq) =
     input
     |> Seq.map int
     |> Seq.windowed 3
