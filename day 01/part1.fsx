@@ -1,7 +1,8 @@
 let input =
     System.IO.File.ReadAllLines $"{__SOURCE_DIRECTORY__}\input.txt"
 
-let example = @"199
+let example =
+    @"199
 200
 208
 210
@@ -12,17 +13,22 @@ let example = @"199
 260
 263"
 
-let isIncrease (n1,n2) = n1 < n2
+let isIncrease (n1, n2) = n1 < n2
 
-example.Split("\n") |> Seq.map int |> Seq.pairwise |> Seq.filter isIncrease |> Seq.length
-input |> Seq.map int |> Seq.pairwise |> Seq.filter isIncrease |> Seq.length
+let solve =
+    Seq.map int
+    >> Seq.pairwise
+    >> Seq.filter isIncrease
+    >> Seq.length
 
 #r "nuget: Unquote"
 open Swensen.Unquote
 
 let run () =
     printf "Testing..."
-    test <@ 1 + 1 = 2 @>
+    test <@ example.Split("\n") |> solve = 7 @>
     printfn "...done!"
 
 run ()
+
+input |> solve
