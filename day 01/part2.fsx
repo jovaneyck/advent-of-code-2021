@@ -14,8 +14,16 @@ let example = @"199
 
 let isIncrease (n1,n2) = n1 < n2
 
-example.Split("\n") |> Seq.map int |> Seq.pairwise |> Seq.filter isIncrease |> Seq.length
-input |> Seq.map int |> Seq.pairwise |> Seq.filter isIncrease |> Seq.length
+let solve input =
+    input
+    |> Seq.map int 
+    |> Seq.windowed 3 
+    |> Seq.map Seq.sum
+    |> Seq.pairwise
+    |> Seq.filter isIncrease 
+    |> Seq.length
+
+input |> solve
 
 #r "nuget: Unquote"
 open Swensen.Unquote
