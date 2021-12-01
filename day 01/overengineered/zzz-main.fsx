@@ -18,7 +18,7 @@ let example =
 let solve1: string seq -> int = App.solve id
 
 let solve2: string seq -> int =
-    App.solve (SlidingWindow.ofSize 2 >> Seq.map Seq.sum)
+    App.solve (SlidingWindow.ofSize 3 >> Seq.map Seq.sum)
 
 #r "nuget: Unquote"
 open Swensen.Unquote
@@ -30,3 +30,8 @@ let runTests () =
     printfn "...done!"
 
 runTests ()
+
+let input =
+    System.IO.File.ReadAllLines $"{__SOURCE_DIRECTORY__}\..\input.txt"
+
+[solve1; solve2] |> List.map (fun f -> f input) |> List.iter (printfn "%d")
