@@ -1,0 +1,3 @@
+module BusinessLogic
+
+let isIncrease = (<)
