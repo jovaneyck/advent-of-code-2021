@@ -19,15 +19,15 @@ let example =
 
 let convertToDecimal binary = System.Convert.ToInt32(binary, 2)
 
-let rec filter decider index (digits: string seq) =
+let rec filter index sorter (digits: string seq) =
     if digits |> Seq.length = 1 then
-        digits
+        digits |> Seq.head
     else
         let mostCommonBit =
             digits
             |> Seq.map (Seq.item index)
             |> Seq.countBy id
-            |> decider
+            |> sorter
             |> fst
 
         let filtered =
@@ -35,25 +35,21 @@ let rec filter decider index (digits: string seq) =
             |> Seq.filter (fun digit -> digit.[index] = mostCommonBit)
             |> Seq.toList
 
-        filter decider (index + 1) filtered
+        filter (index + 1) sorter filtered
 
 let filterOxygenGeneratorRating =
-    filter (Seq.sortDescending >> Seq.maxBy snd)
+    filter 0 (Seq.sortDescending >> Seq.maxBy snd)
 
-let filterCO2Rating = filter (Seq.sort >> Seq.minBy snd)
+let filterCO2Rating = filter 0 (Seq.sort >> Seq.minBy snd)
 
 let solve (input: string seq) =
     let oxygenGeneratorRating =
         input
-        |> filterOxygenGeneratorRating 0
-        |> Seq.head
+        |> filterOxygenGeneratorRating
         |> convertToDecimal
 
     let co2Rating =
-        input
-        |> filterCO2Rating 0
-        |> Seq.head
-        |> convertToDecimal
+        input |> filterCO2Rating |> convertToDecimal
 
     oxygenGeneratorRating * co2Rating
 
