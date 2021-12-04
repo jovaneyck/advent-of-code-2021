@@ -62,8 +62,11 @@ let mark numberToMark board =
                 number)
 
 let isWinner (board: Number [,]) =
-    let rows = [ for i in 0 .. 4 -> board.[i, *] ]
-    let cols = [ for i in 0 .. 4 -> board.[*, i] ]
+    let rows =
+        [ for i in 0 .. ((board |> Array2D.length1) - 1) -> board.[i, *] ]
+
+    let cols =
+        [ for i in 0 .. ((board |> Array2D.length1) - 1) -> board.[*, i] ]
 
     let vectors = List.append rows cols
 
@@ -73,25 +76,36 @@ let isWinner (board: Number [,]) =
 
     hasWinner
 
-let rec findLastWinningBoard numbers boards =
-    printfn "%A" numbers
-    printfn "%A" (boards |> Seq.length)
-    let (n :: ns) = numbers
-    let marked = boards |> List.map (mark n)
-    let winner = marked |> List.tryFind isWinner
+let printBoard (board: Number [,]) =
+    [ for r in 0 .. ((board |> Array2D.length1) - 1) do
+          [ for c in board.[r, *] ->
+                if c.marked then
+                    sprintf "*%d" c.value
+                else
+                    sprintf "%d" c.value ]
+          |> String.concat "\t\t" ]
+    |> String.concat "\n"
 
-    match winner with
-    | None -> findLastWinningBoard ns marked
-    | Some winner ->
-        if 1 = (boards |> Seq.length) then
-            n, winner
-        else
-            let withoutWinner = marked |> List.except [ winner ]
-            findLastWinningBoard ns withoutWinner
+let rec findLastWinningBoard numbers boards winners : int * Number [,] =
+    //printfn "numbers: %A" numbers
+    //printfn "boards:"
+
+    //boards
+    //|> Seq.map printBoard
+    //|> Seq.iter (printfn "%s\n")
+
+    match numbers with
+    | [] -> winners |> Seq.last
+    | n :: ns ->
+        let marked = boards |> List.map (mark n)
+        let newWinners = marked |> List.filter isWinner
+        let newWinnersWithLastNumber = newWinners |> List.map (fun w -> n, w)
+
+        findLastWinningBoard ns (marked |> List.except newWinners) (winners @ newWinnersWithLastNumber)
 
 let solve text =
     let numbers, boards = parse text
-    let lastnumber, winner = findLastWinningBoard numbers boards
+    let lastnumber, winner = findLastWinningBoard numbers boards []
 
     let sumOfUnmarkedNumbers =
         winner
@@ -102,14 +116,83 @@ let solve text =
 
     lastnumber * sumOfUnmarkedNumbers
 
-solve example
+#r "nuget: Unquote"
+open Swensen.Unquote
 
-//#r "nuget: Unquote"
-//open Swensen.Unquote
+let unmarkedBoardContaining =
+    let toUnmarkedNumber n = { value = n; marked = false }
+    array2D >> Array2D.map toUnmarkedNumber
 
-//let run () =
-//    printf "Testing..."
+let markedBoardContaining =
+    let toUnmarkedNumber (n, m) = { value = n; marked = m }
+    array2D >> Array2D.map toUnmarkedNumber
 
-//    printfn "...done!"
+let run () =
+    printf "Testing..."
 
-//run ()
+    test
+        <@ parse [| "1,2,3"
+                    "1  0\n3  4"
+                    "0 5\n6  7" |] = ([ 1; 2; 3 ],
+                                      [ unmarkedBoardContaining [ [ 1; 0 ]
+                                                                  [ 3; 4 ] ]
+                                        unmarkedBoardContaining [ [ 0; 5 ]
+                                                                  [ 6; 7 ] ] ]) @>
+
+    test
+        <@ (unmarkedBoardContaining [ [ 1; 2 ]
+                                      [ 3; 4 ] ]
+            |> mark 3) = (markedBoardContaining [ [ (1, false); (2, false) ]
+                                                  [ (3, true); (4, false) ] ]) @>
+
+    test
+        <@ (unmarkedBoardContaining [ [ 1; 2 ]
+                                      [ 3; 4 ] ]
+            |> mark 5) = unmarkedBoardContaining [ [ 1; 2 ]
+                                                   [ 3; 4 ] ] @>
+
+    test
+        <@ markedBoardContaining [ [ (1, false); (2, false) ]
+                                   [ (3, false); (4, false) ] ]
+           |> isWinner
+           |> not @>
+
+    test
+        <@ markedBoardContaining [ [ (1, false); (2, true) ]
+                                   [ (3, true); (4, false) ] ]
+           |> isWinner
+           |> not @>
+
+    test
+        <@ markedBoardContaining [ [ (1, true); (2, false) ]
+                                   [ (3, false); (4, true) ] ]
+           |> isWinner
+           |> not @>
+
+    test
+        <@ markedBoardContaining [ [ (1, true); (2, true) ]
+                                   [ (3, false); (4, false) ] ]
+           |> isWinner @>
+
+    test
+        <@ markedBoardContaining [ [ (1, false); (2, false) ]
+                                   [ (3, true); (4, true) ] ]
+           |> isWinner @>
+
+    test
+        <@ markedBoardContaining [ [ (1, true); (2, false) ]
+                                   [ (3, true); (4, false) ] ]
+           |> isWinner @>
+
+    test
+        <@ markedBoardContaining [ [ (1, false); (2, true) ]
+                                   [ (3, false); (4, true) ] ]
+           |> isWinner @>
+
+    test <@ solve example = 1924 @>
+
+    printfn "...done!"
+
+run ()
+
+solve input
