@@ -30,8 +30,8 @@ let nextGeneration (generation: State) =
         generation
         |> Map.toList
         |> List.map (fun (timer, count) -> (tickDown timer, count))
-        |> List.groupBy (fun (timer, _) -> timer)
         //6 can enter the fray in multiple ways, so we need to add those together. First way: 7-fish turning 6, second way: 0-fish turning 6
+        |> List.groupBy (fun (timer, _) -> timer)
         |> List.map (fun (_, timedFishcounts) -> timedFishcounts |> List.reduce reducer)
 
     let fullNext =
