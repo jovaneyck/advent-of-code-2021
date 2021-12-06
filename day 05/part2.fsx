@@ -44,11 +44,12 @@ let pointify ({ p1 = (x1, y1); p2 = (x2, y2) } as line) =
 let solve input =
     let lines = input |> Array.map parseLine
 
-    let all_points =
+    let all_points_counted =
         lines |> Seq.collect pointify |> Seq.countBy id
 
     let overlaps =
-        all_points |> Seq.filter (fun (_, nb) -> nb > 1)
+        all_points_counted
+        |> Seq.filter (fun (_, nb) -> nb > 1)
 
     overlaps |> Seq.length
 
