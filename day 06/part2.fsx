@@ -20,7 +20,7 @@ let parse (text: string) : State =
     |> Seq.map (fun (timer, fishes) -> Timer timer, Fishcount(fishes |> Seq.length |> int64))
     |> Map.ofSeq
 
-let nextGeneration (generation: State) =
+let nextGeneration (generation: State) : State =
     let nbParents =
         generation
         |> Map.tryFind (Timer 0)
@@ -40,11 +40,15 @@ let nextGeneration (generation: State) =
         else
             (Timer 8, nbParents) :: next |> Map.ofSeq
 
-    Some(fullNext, fullNext)
+    fullNext
+
+let unfolder s =
+    let next = nextGeneration s
+    Some(next, next)
 
 let solve text wantedGeneration =
     let gen0 = parse text
-    let generations = Seq.unfold nextGeneration gen0
+    let generations = Seq.unfold unfolder gen0
 
     generations
     |> Seq.item (wantedGeneration - 1)
