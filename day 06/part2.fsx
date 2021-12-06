@@ -8,7 +8,7 @@ type Fishcount = Fishcount of int64
 type CountedTimer = Timer * Fishcount
 type State = Map<Timer, Fishcount>
 
-let reducer (t, Fishcount one) (_, Fishcount other) : CountedTimer = (t, Fishcount(one + other))
+let sumCounts (t, Fishcount one) (_, Fishcount other) : CountedTimer = (t, Fishcount(one + other))
 let tickDown (Timer t) = if t = 0 then Timer 6 else Timer(t - 1)
 
 let parse (text: string) : State =
@@ -32,13 +32,14 @@ let nextGeneration (generation: State) : State =
         |> List.map (fun (timer, count) -> (tickDown timer, count))
         //6 can enter the fray in multiple ways, so we need to add those together. First way: 7-fish turning 6, second way: 0-fish turning 6
         |> List.groupBy (fun (timer, _) -> timer)
-        |> List.map (fun (_, timedFishcounts) -> timedFishcounts |> List.reduce reducer)
+        |> List.map (fun (_, timedFishcounts) -> timedFishcounts |> List.reduce sumCounts)
 
     let fullNext =
         if nbParents = Fishcount 0 then
-            next |> Map.ofSeq
+            next
         else
-            (Timer 8, nbParents) :: next |> Map.ofSeq
+            (Timer 8, nbParents) :: next 
+        |> Map.ofSeq
 
     fullNext
 
@@ -55,7 +56,7 @@ let solve text wantedGeneration =
     |> Map.toSeq
     |> Seq.sumBy (fun (_, Fishcount c) -> c)
 
-#time
+//#time
 //solve input 256
 
 #r "nuget: Unquote"
@@ -73,7 +74,7 @@ let run () =
                             |> Map.ofSeq) @>
 
     test <@ solve example 80 = 5934 @>
-    test <@ solve example 256 = 1589590444365L @>
+    test <@ solve example 256 = 26984457539L @>
     printfn "...done!"
 
 run ()
