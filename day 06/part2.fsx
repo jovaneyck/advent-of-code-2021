@@ -21,7 +21,7 @@ let parse (text: string) : State =
     |> Map.ofSeq
 
 let nextGeneration (generation: State) =
-    let (Fishcount nbParents) =
+    let nbParents =
         generation
         |> Map.tryFind (Timer 0)
         |> Option.defaultValue (Fishcount 0)
@@ -35,11 +35,10 @@ let nextGeneration (generation: State) =
         |> List.map (fun (_, timedFishcounts) -> timedFishcounts |> List.reduce reducer)
 
     let fullNext =
-        if nbParents = 0 then
+        if nbParents = Fishcount 0 then
             next |> Map.ofSeq
         else
-            (Timer 8, Fishcount nbParents) :: next
-            |> Map.ofSeq
+            (Timer 8, nbParents) :: next |> Map.ofSeq
 
     Some(fullNext, fullNext)
 
