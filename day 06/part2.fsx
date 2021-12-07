@@ -21,11 +21,6 @@ let parse (text: string) : State =
     |> Map.ofSeq
 
 let nextGeneration (generation: State) : State =
-    let nbParents =
-        generation
-        |> Map.tryFind (Timer 0)
-        |> Option.defaultValue (Fishcount 0)
-
     let next =
         generation
         |> Map.toList
@@ -34,14 +29,19 @@ let nextGeneration (generation: State) : State =
         |> List.groupBy (fun (timer, _) -> timer)
         |> List.map (fun (_, timedFishcounts) -> timedFishcounts |> List.reduce sumCounts)
 
-    let fullNext =
+    let result =
+        let nbParents =
+            generation
+            |> Map.tryFind (Timer 0)
+            |> Option.defaultValue (Fishcount 0)
+
         if nbParents = Fishcount 0 then
             next
         else
             (Timer 8, nbParents) :: next 
         |> Map.ofSeq
 
-    fullNext
+    result
 
 let unfolder s =
     let next = nextGeneration s
