@@ -8,7 +8,7 @@ let parse (text: string) =
 
 let moveCost a b =
     let distance = (a - b) |> abs
-    //Series: sum of first n natural numbers
+    //Series: sum of first n natural numbers, more info here: https://www.cuemath.com/sum-of-natural-numbers-formula/
     let cost = distance * (distance + 1) / 2
     cost
 
