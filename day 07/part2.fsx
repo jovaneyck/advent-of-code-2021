@@ -27,7 +27,7 @@ let solve text =
     |> Seq.map (fun pairs -> pairs |> Seq.sumBy (fun (a, b) -> moveCost a b))
     |> Seq.min
 
-#time
+#time //Real: 00:00:00.416, CPU: 00:00:00.406, GC gen0: 21, gen1: 9, gen2: 3
 solve input
 
 #r "nuget: Unquote"
