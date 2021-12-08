@@ -32,6 +32,7 @@ let parse (line: string) =
     (signalPatterns, outputDigits)
 
 let calculateOutput (patterns, output) =
+    //Lookup helpers
     let ofUniqueLength n segments =
         segments
         |> Seq.find (fun s -> s |> Seq.length = n)
@@ -39,17 +40,18 @@ let calculateOutput (patterns, output) =
     let ofLength n segments =
         segments
         |> Seq.filter (fun s -> s |> Seq.length = n)
-
+    //ADT operations
     let minus a b = Set.difference b a
+    let containsSegment = Set.isSubset 
 
-    //Let's figure out the segments for each different digit
-    //Easy digits
+    //Let's figure out which segment pattern represents which digit
+    //Start with the easy digits of unique segment lengths
     let one = patterns |> ofUniqueLength 2
     let four = patterns |> ofUniqueLength 4
     let seven = patterns |> ofUniqueLength 3
     let eight = patterns |> ofUniqueLength 7
 
-    //Complex digits that need some deduction
+    //Complex digits need some deduction more deduction, we'll use segments CF and BD to figure them out
     let segmentsCF = one
     let segmentsBD = four |> minus segmentsCF
 
@@ -57,11 +59,11 @@ let calculateOutput (patterns, output) =
 
     let three =
         digitsWithFiveSegments
-        |> Seq.find (fun s -> Set.isSuperset s segmentsCF)
+        |> Seq.find (containsSegment segmentsCF)
 
     let five =
         digitsWithFiveSegments
-        |> Seq.find (fun d -> Set.isSuperset d segmentsBD)
+        |> Seq.find (containsSegment segmentsBD)
 
     let two =
         digitsWithFiveSegments
@@ -72,12 +74,12 @@ let calculateOutput (patterns, output) =
 
     let six =
         digitsWithSixSegments
-        |> Seq.find (fun s -> Set.isSuperset s segmentsCF |> not)
+        |> Seq.find (containsSegment segmentsCF >> not)
 
     let nine =
         digitsWithSixSegments
-        |> Seq.filter (fun s -> Set.isSuperset s segmentsCF)
-        |> Seq.filter (fun s -> Set.isSuperset s segmentsBD)
+        |> Seq.filter (containsSegment segmentsCF)
+        |> Seq.filter (containsSegment segmentsBD)
         |> Seq.head
 
     let zero =
