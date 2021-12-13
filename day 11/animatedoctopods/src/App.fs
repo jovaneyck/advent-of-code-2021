@@ -86,6 +86,11 @@ let view model dispatch : ReactElement =
         br []
         str "Made with fable, elmish and lots of #adventofcode ♥"
         br []
+        str "Source code available on "
+        a [ Href "https://github.com/jovaneyck/advent-of-code-2021/tree/main/day%2011/animatedoctopods" ] [
+            str "github"
+        ]
+        br []
         str "Generation:"
         str <| string model.generation
         br []
