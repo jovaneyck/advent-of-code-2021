@@ -62,6 +62,17 @@ let processOne rules t =
 let rec repeat n rules template =
     printf "%d-" n
 
+    let sortedCounts =
+        template
+        |> List.countBy id
+        |> List.sortByDescending snd
+
+    let max = sortedCounts |> List.maxBy snd |> snd
+    let min = sortedCounts |> List.minBy snd |> snd
+    let difference = (max - min)
+
+    printf "%d-" difference
+
     template
     |> List.countBy id
     |> List.sortBy fst
@@ -74,15 +85,13 @@ let rec repeat n rules template =
     else
         repeat (n + 1) rules (processOne rules template)
 
-
-
 let solve input =
     let (t, r) = parse input
 
-    let after10 = repeat 0 r t
+    let afterX = repeat 0 r t
 
     let sortedCounts =
-        after10
+        afterX
         |> List.countBy id
         |> List.sortByDescending snd
 
