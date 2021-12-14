@@ -25,10 +25,10 @@ let example =
 
 let parseRule (line: string) =
     let [| src; dest |] = line.Split(" -> ")
-    (src |> Seq.toList, dest |> Seq.toList)
+    (src |> Seq.toArray, dest |> Seq.toArray)
 
 let parse (input: string []) =
-    let template = input.[0] |> Seq.toList
+    let template = input.[0] |> Seq.toArray
 
     let rules =
         input
@@ -38,75 +38,70 @@ let parse (input: string []) =
 
     (template, rules)
 
-let apply rules (pair: char list) =
+let apply rules (pair: char[]) =
     match rules |> Map.tryFind pair with
-    | None -> pair
-    | Some result ->
-        let [ a; b ] = pair
-        [ a ] @ result @ [ b ]
+    | None -> [||]
+    | Some result -> result
+let processOne rules (t : char[]) =
+    Array.concat [
+        [|for i in 0..((t |> Seq.length)-2) do
+            let a = t.[i]
+            let b = t.[i+1]
+            yield a
+            yield! (apply rules [|a; b|])
+        |] 
+        t |> Array.last |> Array.singleton
+    ]
 
-let processOne rules t =
-    let insertedPairs =
-        t
-        |> List.pairwise
-        |> List.map (fun (a, b) -> apply rules [ a; b ])
+let repeat max rules template =
+    let rec repeat n template =
+        printf "%d-" n
 
-    insertedPairs
-    |> List.map
-        (fun sublist ->
-            sublist
-            |> List.removeAt ((sublist |> List.length) - 1))
-    |> List.collect id
-    |> (fun t -> t @ [ insertedPairs |> List.last |> List.last ])
+        //let sortedCounts =
+        //    template
+        //    |> List.countBy id
+        //    |> List.sortByDescending snd
 
-let rec repeat n rules template =
-    printf "%d-" n
+        //let max = sortedCounts |> List.maxBy snd |> snd
+        //let min = sortedCounts |> List.minBy snd |> snd
+        //let difference = (max - min)
 
-    let sortedCounts =
-        template
-        |> List.countBy id
-        |> List.sortByDescending snd
+        //printf "%d-" difference
 
-    let max = sortedCounts |> List.maxBy snd |> snd
-    let min = sortedCounts |> List.minBy snd |> snd
-    let difference = (max - min)
+        //template
+        //|> List.countBy id
+        //|> List.sortBy fst
+        //|> List.iter (fun (character, count) -> printf "%c:%d;" character count)
 
-    printf "%d-" difference
+        printfn ""
 
-    template
-    |> List.countBy id
-    |> List.sortBy fst
-    |> List.iter (fun (character, count) -> printf "%c:%d;" character count)
+        if n = max then
+            template
+        else
+            repeat (n + 1) (processOne rules template)
 
-    printfn ""
+    repeat 0 template
 
-    if n = 20 then
-        template
-    else
-        repeat (n + 1) rules (processOne rules template)
-
-let solve input =
+let solve nbSteps input =
     let (t, r) = parse input
 
-    let afterX = repeat 0 r t
+    let afterX = repeat nbSteps r t
 
     let sortedCounts =
         afterX
-        |> List.countBy id
-        |> List.sortByDescending snd
+        |> Seq.countBy id
+        |> Seq.sortByDescending snd
 
-    let max = sortedCounts |> List.maxBy snd |> snd
-    let min = sortedCounts |> List.minBy snd |> snd
+    let max = sortedCounts |> Seq.maxBy snd |> snd
+    let min = sortedCounts |> Seq.minBy snd |> snd
     max - min
-
-solve example
 
 #r "nuget: Unquote"
 open Swensen.Unquote
 
 let run () =
     printf "Testing..."
-    test <@ 1 + 1 = 2 @>
+    test <@ solve 40 input = 1588 @>
     printfn "...done!"
 
 run ()
