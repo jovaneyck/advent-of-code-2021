@@ -37,29 +37,30 @@ let updateBestDistance distances (location, altDistance) =
     else
         distances
 
-let rec shortestPaths cave workingList distances =
+let rec shortestPaths cave target workingList distances =
     printfn "We still have to process %d locations" (workingList |> Set.count)
 
     if workingList |> Set.isEmpty then
         distances
     else
-        let currentLocation =
+        let currentLocation, distanceCurrentLocation =
             workingList
-            |> Seq.minBy (fun location -> distances |> Map.find location)
+            |> Set.map (fun location -> location, distances |> Map.find location)
+            |> Seq.minBy snd
 
-        let distanceCurrentLocation = distances |> Map.find currentLocation
+        if currentLocation = target then //Stop, we're only interested in shortest path to target
+            distances
+        else
+            let updatedWorkingList =
+                workingList |> Set.remove currentLocation
 
-        let neighbs = currentLocation |> neighbours cave
+            let updatedDistances =
+                currentLocation
+                |> neighbours cave
+                |> List.map (fun (x, y) -> (x, y), (distanceCurrentLocation + (cave.[x, y])))
+                |> List.fold updateBestDistance distances
 
-        let updatedWorkingList =
-            workingList |> Set.remove currentLocation
-
-        let updatedDistances =
-            neighbs
-            |> List.map (fun ((x, y) as location) -> location, (distanceCurrentLocation + (cave.[x, y])))
-            |> List.fold updateBestDistance distances
-
-        shortestPaths cave updatedWorkingList updatedDistances
+            shortestPaths cave target updatedWorkingList updatedDistances
 
 let solve input =
     let cave = parse input
@@ -81,13 +82,20 @@ let solve input =
                     coord, System.Int32.MaxValue)
         |> Map.ofSeq
 
-    let paths = shortestPaths cave workingList distances
-    let bottomRightShortestDistance = paths |> Map.find (dimension, dimension)
-    bottomRightShortestDistance
+    let target = (dimension, dimension)
 
+    let shortestDistances =
+        shortestPaths cave target workingList distances
+
+    let shortestDistanceToTarget = shortestDistances |> Map.find target
+    shortestDistanceToTarget
+
+#time
+//YIKES: Real: 00:04:34.873, CPU: 00:04:19.750, GC gen0: 50663, gen1: 2447, gen2: 42
 //solve input
 
 #r "nuget: Unquote"
+
 open Swensen.Unquote
 
 let run () =

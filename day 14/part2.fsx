@@ -20,15 +20,42 @@ let example =
     BC -> B
     CC -> N
     CN -> C"
-        .Split([|"\n"|], System.StringSplitOptions.None)
+        .Split([| "\n" |], System.StringSplitOptions.None)
     |> Array.map (fun s -> s.Trim())
 
-let parseRule (line: string) =
-    let [| src; dest |] = line.Split([|" -> "|], System.StringSplitOptions.None)
-    (src |> Seq.toArray, dest |> Seq.toArray)
+type Ruleset = Map<char * char, char>
 
-let parse (input: string []) =
-    let template = input.[0] |> Seq.toArray
+type Polymer =
+    { LetterCounts: Map<char, uint64>
+      PairCounts: Map<char * char, uint64> }
+
+let parseRule (line: string) =
+    let [| src; dest |] =
+        line.Split([| " -> " |], System.StringSplitOptions.None)
+
+    let src1 = src.[0]
+    let src2 = src.[1]
+    ((src1, src2), dest |> Seq.head)
+
+
+let parsePolymer (input: string) : Polymer =
+    let letterCounts =
+        input
+        |> Seq.toArray
+        |> Seq.countBy id
+        |> Seq.map (fun (l, c) -> (l, uint64 c))
+
+    let pairCounts =
+        input
+        |> Seq.pairwise
+        |> Seq.countBy id
+        |> Seq.map (fun (l, c) -> (l, uint64 c))
+
+    { LetterCounts = Map.ofSeq letterCounts
+      PairCounts = Map.ofSeq pairCounts }
+
+let parse (input: string []) : Polymer * Ruleset =
+    let polymer = parsePolymer input.[0]
 
     let rules =
         input
@@ -36,48 +63,47 @@ let parse (input: string []) =
         |> Array.map parseRule
         |> Map.ofArray
 
-    (template, rules)
+    (polymer, rules)
 
-let apply rules (pair: char[]) =
-    match rules |> Map.tryFind pair with
-    | None -> [||]
-    | Some result -> result
+let folder (rules: Ruleset) (polymer: Polymer) paircount =
+    let (a, b) as pair, count = paircount
+    let newChar = rules |> Map.find pair
 
-let processOne rules (t : char[]) =
-    let max = (t |> Seq.length)-2
-    
-    [|for i in 0..max do
-        let a = t.[i]
-        let b = t.[i+1]
-        yield a
-        yield! (apply rules [|a; b|])
-        if i = max then yield b        
-    |] 
+    let currentLetterCount =
+        polymer.LetterCounts
+        |> Map.tryFind newChar
+        |> Option.defaultValue 0UL
+
+    let newLetterCounts =
+        polymer.LetterCounts
+        |> Map.add newChar (currentLetterCount + count)
+
+    let newPaircounts =
+        [ (a, newChar), count
+          (newChar, b), count ]
+
+    let nextPaircounts =
+        List.append
+            newPaircounts
+            (polymer.PairCounts
+             |> Map.remove pair
+             |> Map.toList)
+        |> List.groupBy fst
+        |> List.map (fun (pair, counts) -> pair, counts |> List.sumBy snd)
+        |> Map.ofList
+
+    { PairCounts = nextPaircounts
+      LetterCounts = newLetterCounts }
+
+let processOne (rules: Ruleset) (t: Polymer) : Polymer =
+    t.PairCounts
+    |> Map.toSeq
+    //TODO: map instead of fold, rebuild maps from individual counts in the end
+    |> Seq.fold (folder rules) t
 
 let repeat max rules template =
     let rec repeat' n template =
-        printfn "%s" (template |> Seq.map string |> String.concat "")
-
-        //printf "%d-" n
-
-        //let sortedCounts =
-        //    template
-        //    |> Array.countBy id
-        //    |> Array.sortByDescending snd
-
-        //let maxCount = sortedCounts |> Array.maxBy snd
-        //let minCount = sortedCounts |> Array.minBy snd
-        //let difference = (snd maxCount - (snd minCount))
-        //printf "%A-" (fst minCount, fst maxCount)
-
-        //printf "%d-" difference
-
-        //template
-        //|> Array.countBy id
-        //|> Array.sortBy fst
-        //|> Array.iter (fun (character, count) -> printf "%c:%d;" character count)
-
-        //printfn ""
+        printfn "After step %d: %A" n template
 
         if n = max then
             template
@@ -92,8 +118,8 @@ let solve nbSteps input =
     let afterX = repeat nbSteps r t
 
     let sortedCounts =
-        afterX
-        |> Seq.countBy id
+        afterX.LetterCounts
+        |> Map.toSeq
         |> Seq.sortByDescending snd
 
     let max = sortedCounts |> Seq.maxBy snd
@@ -105,9 +131,9 @@ open Swensen.Unquote
 
 let run () =
     printf "Testing..."
-    test <@ solve 10 example = 1588 @>
+    test <@ solve 4 example = 1588UL @>
     printfn "...done!"
 
 run ()
 
-let part2 =  solve 20 input
+let part2 = solve 10 input
