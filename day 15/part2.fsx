@@ -27,6 +27,14 @@ let parse input =
           [ for col in row -> col |> string |> int ] ]
     |> array2D
 
+let grow cave =
+    let scale = 2
+    let dimension = (cave |> Array2D.length1) 
+    let initializer row col = (cave.[row % scale,col % scale] + row + col) % 9
+    Array2D.init (scale*dimension) (scale*dimension) initializer
+
+array2D [[1;2];[3;4]] |> grow
+
 let neighbours cave (x, y) =
     [ if x > 0 then yield (x - 1, y)
       if x < ((cave |> Array2D.length1) - 1) then
