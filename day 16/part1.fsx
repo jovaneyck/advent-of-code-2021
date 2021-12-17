@@ -1,26 +1,22 @@
 let input =
-    System.IO.File.ReadAllLines $"{__SOURCE_DIRECTORY__}\input.txt"
+    System.IO.File.ReadAllText $"{__SOURCE_DIRECTORY__}\input.txt"
 
-let example =
-    @"".Split("\n") |> Array.map (fun s -> s.Trim())
 
 type ParsedPacket =
-    | LiteralValue of {| version: int; number: int64 |}
+    | LiteralValue of {| version: int64; number: int64 |}
     | Operator of
-        {| version: int
-           operator: int
+        {| version: int64
+           operator: int64
            packets: ParsedPacket list |}
 
 type Mode =
-    | TotalLengthInBits of int
-    | NumberOfPackets of int
+    | TotalLengthInBits of int64
+    | NumberOfPackets of int64
 
-let substring startIndex length (s: string) = s.Substring(startIndex, length)
+let splitAt (length: int64) (s: string) =
+    s.Substring(0, int length), s.Substring(int length)
 
-let splitAt length (s: string) =
-    s.Substring(0, length), s.Substring(length)
-
-let binToDec (number: string) = System.Convert.ToInt32(number, 2)
+let binToDec (number: string) = System.Convert.ToInt64(number, 2)
 
 let rec groups text =
     let group, remainder = text |> splitAt 5
@@ -46,9 +42,6 @@ let parseMode operatorPacket : Mode * string =
         NumberOfPackets(lengthText |> binToDec), rremainder
     | u, rem -> failwithf "Unknown operator packet length type ID %s, with remainder string: %A" u rem
 
-let totalLengthOperatorPacket =
-    "00000000000110111101000101001010010001001000000000"
-
 let rec parsePacket text =
     let versionText, remainder = text |> splitAt 3
     let version = versionText |> binToDec
@@ -72,25 +65,77 @@ let rec parsePacket text =
         rrremainder
 
 and parseOperatorPacket text =
-    let mode, remainder = parseMode totalLengthOperatorPacket
+    let mode, remainder = parseMode text
+    //printfn "parsing an operator packet in mode %A" mode
 
     match mode with
     | TotalLengthInBits total ->
         let subpacketsText, rremainder = remainder |> splitAt total
-        parseSubpacketsTotalLength total subpacketsText
-    | NumberOfPackets number -> [], ""
+        parseSubpacketsTotalLength subpacketsText, rremainder
+    | NumberOfPackets number -> parseSubPacketsNumberPackets number remainder
 
-and parseSubpacketsTotalLength length text =
-    if length = 0 then
+and parseSubpacketsTotalLength text =
+    if text = "" then
+        []
+    else
+        let packet, remainder = parsePacket text
+        packet :: (parseSubpacketsTotalLength remainder)
+
+and parseSubPacketsNumberPackets nbPackets text =
+    if nbPackets = 0 then
         [], text
     else
-        [], text
+        let packet, remainder = parsePacket text
+
+        let recPackets, rremainder =
+            parseSubPacketsNumberPackets (nbPackets - 1L) remainder
+
+        packet :: recPackets, rremainder
+
+let hexToBinary (text: string) : string =
+    let lookup =
+        [ '0', "0000"
+          '1', "0001"
+          '2', "0010"
+          '3', "0011"
+          '4', "0100"
+          '5', "0101"
+          '6', "0110"
+          '7', "0111"
+          '8', "1000"
+          '9', "1001"
+          'A', "1010"
+          'B', "1011"
+          'C', "1100"
+          'D', "1101"
+          'E', "1110"
+          'F', "1111" ]
+        |> Map.ofSeq
+
+    text
+    |> Seq.map (fun hexChar -> lookup |> Map.find hexChar)
+    |> String.concat ""
+
+let rec addVersions acc packet =
+    match packet with
+    | LiteralValue v -> acc + v.version
+    | Operator o ->
+        let sub = o.packets |> List.fold addVersions 0L
+        acc + o.version + sub
+
+let solve text =
+    let packet, remainder = text |> hexToBinary |> parsePacket
+
+    packet |> (addVersions 0)
+
+//solve input
 
 #r "nuget: Unquote"
 open Swensen.Unquote
 
 let run () =
     printf "Testing..."
+    test <@ hexToBinary "D2FE28" = "110100101111111000101000" @>
     test <@ "011111100101" |> binToDec = 2021 @>
     test <@ groups "101111111000101000" = ("011111100101", "000") @>
     test <@ parsePacket "110100101111111000101000" = (LiteralValue {| number = 2021L; version = 6 |}, "000") @>
@@ -98,6 +143,41 @@ let run () =
     test
         <@ parseMode "00000000000110111101000101001010010001001000000000" = (TotalLengthInBits 27,
                                                                              "1101000101001010010001001000000000") @>
+
+
+    test
+        <@ parsePacket "00111000000000000110111101000101001010010001001000000000" = (Operator
+                                                                                         {| operator = 6
+                                                                                            packets =
+                                                                                                [ LiteralValue
+                                                                                                    {| number = 10L
+                                                                                                       version = 6 |}
+                                                                                                  LiteralValue
+                                                                                                      {| number = 20L
+                                                                                                         version = 2 |} ]
+                                                                                            version = 1 |},
+                                                                                     "0000000") @>
+
+    test
+        <@ parsePacket "11101110000000001101010000001100100000100011000001100000" = (Operator
+                                                                                         {| operator = 3
+                                                                                            packets =
+                                                                                                [ LiteralValue
+                                                                                                    {| number = 1L
+                                                                                                       version = 2 |}
+                                                                                                  LiteralValue
+                                                                                                      {| number = 2L
+                                                                                                         version = 4 |}
+                                                                                                  LiteralValue
+                                                                                                      {| number = 3L
+                                                                                                         version = 1 |} ]
+                                                                                            version = 7 |},
+                                                                                     "00000") @>
+
+    test <@ solve "8A004A801A8002F478" = 16L @>
+    test <@ solve "620080001611562C8802118E34" = 12L @>
+    test <@ solve "C0015000016115A2E0802F182340" = 23L @>
+    test <@ solve "A0016C880162017C3686B18A3D4780" = 31L @>
 
     printfn "...done!"
 
