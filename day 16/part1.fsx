@@ -66,7 +66,6 @@ let rec parsePacket text =
 
 and parseOperatorPacket text =
     let mode, remainder = parseMode text
-    //printfn "parsing an operator packet in mode %A" mode
 
     match mode with
     | TotalLengthInBits total ->
@@ -135,10 +134,10 @@ open Swensen.Unquote
 
 let run () =
     printf "Testing..."
-    test <@ hexToBinary "D2FE28" = "110100101111111000101000" @>
+    test <@ "D2FE28" |> hexToBinary = "110100101111111000101000" @>
     test <@ "011111100101" |> binToDec = 2021 @>
     test <@ groups "101111111000101000" = ("011111100101", "000") @>
-    test <@ parsePacket "110100101111111000101000" = (LiteralValue {| number = 2021L; version = 6 |}, "000") @>
+    test <@ parsePacket "110100101111111000101000" |> fst = LiteralValue {| number = 2021L; version = 6 |} @>
 
     test
         <@ parseMode "00000000000110111101000101001010010001001000000000" = (TotalLengthInBits 27,
@@ -146,33 +145,23 @@ let run () =
 
 
     test
-        <@ parsePacket "00111000000000000110111101000101001010010001001000000000" = (Operator
-                                                                                         {| operator = 6
-                                                                                            packets =
-                                                                                                [ LiteralValue
-                                                                                                    {| number = 10L
-                                                                                                       version = 6 |}
-                                                                                                  LiteralValue
-                                                                                                      {| number = 20L
-                                                                                                         version = 2 |} ]
-                                                                                            version = 1 |},
-                                                                                     "0000000") @>
+        <@ parsePacket "00111000000000000110111101000101001010010001001000000000"
+           |> fst = Operator
+                        {| operator = 6
+                           packets =
+                               [ LiteralValue {| number = 10L; version = 6 |}
+                                 LiteralValue {| number = 20L; version = 2 |} ]
+                           version = 1 |} @>
 
     test
-        <@ parsePacket "11101110000000001101010000001100100000100011000001100000" = (Operator
-                                                                                         {| operator = 3
-                                                                                            packets =
-                                                                                                [ LiteralValue
-                                                                                                    {| number = 1L
-                                                                                                       version = 2 |}
-                                                                                                  LiteralValue
-                                                                                                      {| number = 2L
-                                                                                                         version = 4 |}
-                                                                                                  LiteralValue
-                                                                                                      {| number = 3L
-                                                                                                         version = 1 |} ]
-                                                                                            version = 7 |},
-                                                                                     "00000") @>
+        <@ parsePacket "11101110000000001101010000001100100000100011000001100000"
+           |> fst = Operator
+                        {| operator = 3
+                           packets =
+                               [ LiteralValue {| number = 1L; version = 2 |}
+                                 LiteralValue {| number = 2L; version = 4 |}
+                                 LiteralValue {| number = 3L; version = 1 |} ]
+                           version = 7 |} @>
 
     test <@ solve "8A004A801A8002F478" = 16L @>
     test <@ solve "620080001611562C8802118E34" = 12L @>
