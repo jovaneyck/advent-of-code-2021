@@ -123,7 +123,7 @@ let rec addVersions acc packet =
         acc + o.version + sub
 
 let solve text =
-    let packet, remainder = text |> hexToBinary |> parsePacket
+    let packet, _ = text |> hexToBinary |> parsePacket
 
     packet |> (addVersions 0)
 
