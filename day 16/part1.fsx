@@ -40,7 +40,8 @@ let parseMode operatorPacket : Mode * string =
     | "1", remainder ->
         let lengthText, rremainder = remainder |> splitAt 11
         NumberOfPackets(lengthText |> binToDec), rremainder
-    | u, rem -> failwithf "Unknown operator packet length type ID %s, with remainder string: %A" u rem
+    | u, rem ->
+        failwithf "Unknown operator packet length type ID %s, with remainder string: %A" u rem
 
 let rec parsePacket text =
     let versionText, remainder = text |> splitAt 3
@@ -137,7 +138,10 @@ let run () =
     test <@ "D2FE28" |> hexToBinary = "110100101111111000101000" @>
     test <@ "011111100101" |> binToDec = 2021 @>
     test <@ groups "101111111000101000" = ("011111100101", "000") @>
-    test <@ parsePacket "110100101111111000101000" |> fst = LiteralValue {| number = 2021L; version = 6 |} @>
+
+    test
+        <@ parsePacket "110100101111111000101000" |> fst = LiteralValue
+                                                               {| number = 2021L; version = 6 |} @>
 
     test
         <@ parseMode "00000000000110111101000101001010010001001000000000" = (TotalLengthInBits 27,
