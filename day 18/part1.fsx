@@ -71,11 +71,11 @@ module Parsers =
         |> annotateDepth
 
 module Zipper =
-    //LYAHFGG chapter 14 introduces "zippers" to traverse datastructures + maintaining an overview of the context
+    //LYAHFGG! chapter 14 introduces "zippers" to traverse datastructures + maintaining an overview of the context
     //A zipper represents
     // * a node in a snailnumber tree
-    // * and the path explaining how we got
-    //This allows us to reconstruct the tree when we need to from a current node
+    // * and the path explaining how we got there
+    //This allows us to reconstruct the tree when we need to from wherever we find ourselves in the tree
     type Breadcrumb =
         | Left of Number
         | Right of Number
@@ -98,19 +98,29 @@ module Zipper =
             let (Some upper) = up z
             top upper
 
-    let left (z: Zipper) : Zipper =
+    let left (z: Zipper) : Zipper option =
         let n, path = z
 
         match n with
-        | Value _ -> failwith "Cannot descend a leaf node"
-        | Pair ((l, r), d) -> l, (Left r :: path)
+        | Value _ -> None
+        | Pair ((l, r), d) -> Some(l, (Left r :: path))
 
-    let right (z: Zipper) : Zipper =
+    let right (z: Zipper) : Zipper option =
         let n, path = z
 
         match n with
-        | Value _ -> failwith "Cannot descend a leaf node"
-        | Pair ((l, r), _) -> r, (Right l :: path)
+        | Value _ -> None
+        | Pair ((l, r), _) -> Some(r, (Right l :: path))
+
+    let rec bottomLeft (z: Zipper) : Zipper option =
+        match z |> left with
+        | Some v -> bottomLeft v
+        | None -> Some z
+
+    let rec bottomRight (z: Zipper) : Zipper option =
+        match z |> right with
+        | Some v -> bottomRight v
+        | None -> Some z
 
     let rec tryLeftSibling (z: Zipper) : Zipper option =
         let parent = z |> up
@@ -118,12 +128,13 @@ module Zipper =
         match parent with
         | None -> None
         | Some parent ->
-            let sibling = parent |> left
-
-            if sibling <> z then
-                Some sibling
-            else
-                tryLeftSibling parent
+            match parent |> left with
+            | None -> None
+            | Some sibling ->
+                if sibling <> z then
+                    bottomRight sibling
+                else
+                    tryLeftSibling parent
 
     let rec tryRightSibling (z: Zipper) : Zipper option =
         let parent = z |> up
@@ -131,12 +142,13 @@ module Zipper =
         match parent with
         | None -> None
         | Some parent ->
-            let sibling = parent |> right
-
-            if sibling <> z then
-                Some sibling
-            else
-                tryRightSibling parent
+            match parent |> right with
+            | None -> None
+            | Some sibling ->
+                if sibling <> z then
+                    bottomLeft sibling
+                else
+                    tryRightSibling parent
 
     let toNumber z : Number =
         let n, _ = top z
@@ -153,85 +165,174 @@ module Zipper =
             match number with
             | Value _ -> None
             | _ ->
-                match tryFind predicate (left zipper) with
-                | Some hit -> Some hit
-                | None ->
-                    match tryFind predicate (right zipper) with
+                match left zipper with
+                | Some l ->
+                    match tryFind predicate l with
                     | Some hit -> Some hit
+                    | None ->
+                        match right zipper with
+                        | None -> None
+                        | Some r ->
+                            match tryFind predicate r with
+                            | Some hit -> Some hit
+                            | None -> None
+                | None ->
+                    match right zipper with
                     | None -> None
+                    | Some r ->
+                        match tryFind predicate r with
+                        | Some hit -> Some hit
+                        | None -> None
 
     let apply f (z: Zipper) =
         let (node, path) = z
         (f node, path)
+
+let add (n: Number) (n2: Number) : Number = Pair((n, n2), depth n)
 
 let explodes: Number -> bool =
     function
     | Pair ((Value _, Value _), 4) -> true
     | _ -> false
 
-let (Some explosion) =
-    (Parsers.parse "[[6,[5,[4,[3,2]]]],1]")
-    |> Zipper.ofNumber
-    |> Zipper.tryFind explodes
+let explode explosion =
+    let ((Pair ((Value (leftSplosion, _), Value (rightSplosion, _)), _), _)) = explosion
 
-let ((Pair ((Value (leftSplosion, _), Value (rightSplosion, _)), _), path)) = explosion
-(leftSplosion, rightSplosion, path)
+    let zeroValued =
+        explosion
+        |> Zipper.apply (fun n -> (Value(0, (depth n))))
 
-let zeroValued =
-    explosion
-    |> Zipper.apply (fun n -> (Value(0, (depth n))))
+    let leftApplied =
+        match zeroValued |> Zipper.tryLeftSibling with
+        | Some lefty ->
+            let (Some applied) =
+                lefty
+                |> Zipper.apply
+                    (function
+                    | Value (v, d) -> Value(v + leftSplosion, d))
+                |> Zipper.tryRightSibling
 
-match zeroValued |> Zipper.tryLeftSibling with
-| Some lefty -> lefty
-| None -> zeroValued
+            applied
+        | None -> zeroValued
 
-//TODO: to do the exploding, we need to go up
-//but if we're in a left subtree we cannot just go up 1 and left 1
-//we need to move up recursively until we can go to an unexplored left??
+    let rightApplied =
+        match leftApplied |> Zipper.tryRightSibling with
+        | None -> leftApplied
+        | Some righty ->
+            righty
+            |> Zipper.apply
+                (function
+                | Value (v, d) -> Value(v + rightSplosion, d))
 
-//explosion
-//|> Zipper.apply (fun n -> Value(0, depth n))
+    rightApplied
 
-let check name prop =
-    Check.One(
-        name,
-        { FsCheck.Config.Default with
-              QuietOnSuccess = true },
-        prop
-    )
+let needsSplit (n: Number) =
+    match n with
+    | Value (v, _) when v >= 10 -> true
+    | _ -> false
 
-let run () =
-    printf "Testing..."
-    test <@ Parsers.parse "123" = Value(123, 0) @>
-    test <@ Parsers.parse "[1,2]" = Pair((Value(1, 1), Value(2, 1)), 0) @>
+let split (n: Number) =
+    match n with
+    | Pair _ -> failwith "Never expected to split a pair, something is wrong"
+    | Value (v, d) -> Pair((Value(v / 2, d + 1), Value((v + 1) / 2, d + 1)), d)
 
-    test
-        <@ Parsers.parse "[1,[3,4]]" = Pair((Value(1, 1), Pair((Value(3, 2), Value(4, 2)), 1)), 0) @>
+let handleSplit (z: Zipper.Zipper) = z |> Zipper.apply split
 
-    test
-        <@ Parsers.parse "[[3,4],[[5,6],7]]" = Pair(
-            (Pair((Value(3, 2), Value(4, 2)), 1),
-             Pair((Pair((Value(5, 3), Value(6, 3)), 2), Value(7, 2)), 1)),
-            0
-        ) @>
+let rec reduceSplits (z: Zipper.Zipper) =
+    let nextSplit = z |> Zipper.tryFind needsSplit
 
-    check
-        "Traversing a zipper leaves the snailnumber intact"
-        (fun (n: Parsers.PNumber) ->
-            let definitePair =
-                Parsers.PPair(n, n) |> Parsers.annotateDepth
+    match nextSplit with
+    | None -> z
+    | Some s -> s |> handleSplit |> Zipper.top |> reduce
 
-            let walkedAround =
-                definitePair
-                |> Zipper.ofNumber
-                |> Zipper.left
-                |> Zipper.up
-                |> Option.get
-                |> Zipper.right
-                |> Zipper.toNumber
+and reduce (z: Zipper.Zipper) =
+    match z |> Zipper.tryFind explodes with
+    | Some explosion -> explosion |> explode |> Zipper.top |> reduce
+    | None -> z |> Zipper.top |> reduceSplits
 
-            definitePair = walkedAround)
+[<AutoOpen>]
+module Tests =
+    let check name prop =
+        Check.One(
+            name,
+            { FsCheck.Config.Default with
+                  QuietOnSuccess = true },
+            prop
+        )
 
-    printfn "...done!"
+    let tSingleExplode number =
+        number
+        |> Parsers.parse
+        |> Zipper.ofNumber
+        |> Zipper.tryFind explodes
+        |> Option.get
+        |> explode
+        |> Zipper.toNumber
+        |> print
 
-run ()
+    let run () =
+        printf "Testing..."
+        test <@ Parsers.parse "123" = Value(123, 0) @>
+        test <@ Parsers.parse "[1,2]" = Pair((Value(1, 1), Value(2, 1)), 0) @>
+
+        test
+            <@ Parsers.parse "[1,[3,4]]" = Pair(
+                (Value(1, 1), Pair((Value(3, 2), Value(4, 2)), 1)),
+                0
+            ) @>
+
+        test
+            <@ Parsers.parse "[[3,4],[[5,6],7]]" = Pair(
+                (Pair((Value(3, 2), Value(4, 2)), 1),
+                 Pair((Pair((Value(5, 3), Value(6, 3)), 2), Value(7, 2)), 1)),
+                0
+            ) @>
+
+        check
+            "Traversing a zipper leaves the snailnumber intact"
+            (fun (n: Parsers.PNumber) ->
+                let definitePair =
+                    Parsers.PPair(n, n) |> Parsers.annotateDepth
+
+                let walkedAround =
+                    definitePair
+                    |> Zipper.ofNumber
+                    |> Zipper.left
+                    |> Option.get
+                    |> Zipper.up
+                    |> Option.get
+                    |> Zipper.right
+                    |> Option.get
+                    |> Zipper.toNumber
+
+                definitePair = walkedAround)
+
+        test <@ tSingleExplode "[[[[[9,8],1],2],3],4]" = "[[[[0,9],2],3],4]" @>
+        test <@ tSingleExplode "[7,[6,[5,[4,[3,2]]]]]" = "[7,[6,[5,[7,0]]]]" @>
+        test <@ tSingleExplode "[[6,[5,[4,[3,2]]]],1]" = "[[6,[5,[7,0]]],3]" @>
+
+        test
+            <@ tSingleExplode "[[3,[2,[1,[7,3]]]],[6,[5,[4,[3,2]]]]]" = "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]" @>
+
+        test
+            <@ tSingleExplode "[[3,[2,[8,0]]],[9,[5,[4,[3,2]]]]]" = "[[3,[2,[8,0]]],[9,[5,[7,0]]]]" @>
+
+        test <@ split (Value(10, 1337)) = Pair((Value(5, 1338), Value(5, 1338)), 1337) @>
+        test <@ split (Value(11, 1337)) = Pair((Value(5, 1338), Value(6, 1338)), 1337) @>
+        test <@ split (Value(12, 666)) = Pair((Value(6, 667), Value(6, 667)), 666) @>
+
+        test
+            <@ add ("[[[[4,3],4],4],[7,[[8,4],9]]]" |> Parsers.parse) ("[1,1]" |> Parsers.parse)
+               |> print = "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]" @>
+
+        test
+            <@ "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]"
+               |> Parsers.parse
+               |> Zipper.ofNumber
+               |> reduce
+               |> Zipper.toNumber
+               |> print = "[[[[0,7],4],[[7,8],[6,0]]],[8,1]]" @>
+
+        printfn "...done!"
+
+Tests.run ()
