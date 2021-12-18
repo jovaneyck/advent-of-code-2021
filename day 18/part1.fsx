@@ -181,11 +181,8 @@ let run () =
     check
         "Traversing a zipper leaves the snailnumber intact"
         (fun (n: Parsers.PNumber) ->
-
             let definitePair =
-                n
-                |> (fun n -> Parsers.PPair(n, n))
-                |> Parsers.annotateDepth
+                Parsers.PPair(n, n) |> Parsers.annotateDepth
 
             let walkedAround =
                 definitePair
