@@ -1,9 +1,11 @@
 //Dijkstra
 //Basic approach using an unsorted list as queue is pretty slow, even for part 1
 //Let's rework using a priority queue!
-
 #r "nuget: Fsharpx.Collections"
+#r "nuget: Unquote"
+
 open FSharpx.Collections
+open Swensen.Unquote
 
 let input =
     System.IO.File.ReadAllLines $"{__SOURCE_DIRECTORY__}\input.txt"
@@ -27,14 +29,6 @@ let parse input =
           [ for col in row -> col |> string |> int ] ]
     |> array2D
 
-let grow cave =
-    let scale = 2
-    let dimension = (cave |> Array2D.length1) 
-    let initializer row col = (cave.[row % scale,col % scale] + row + col) % 9
-    Array2D.init (scale*dimension) (scale*dimension) initializer
-
-array2D [[1;2];[3;4]] |> grow
-
 let neighbours cave (x, y) =
     [ if x > 0 then yield (x - 1, y)
       if x < ((cave |> Array2D.length1) - 1) then
@@ -45,43 +39,75 @@ let neighbours cave (x, y) =
 
 
 let updateWorkingList workingList (location, distance) =
-    workingList
-    |> Heap.insert (distance, location)
+    workingList |> Heap.insert (distance, location)
 
-let rec shortestPaths cave target (workingList : Heap<int*(int*int)>) visited =
+let rec shortestPaths cave target (workingList: Heap<int * (int * int)>) visited =
     //printfn "We still have to process %d locations" (workingList |> Heap.length)
 
 
-    let distanceCurrentLocation, currentLocation =
-        workingList
-        |> Heap.head
+    let distanceCurrentLocation, currentLocation = workingList |> Heap.head
 
     if currentLocation = target then //Stop, we're only interested in shortest path to target
         distanceCurrentLocation
     else
-        let neighbs = 
-            currentLocation
-            |> neighbours cave
+        let neighbs = currentLocation |> neighbours cave
 
         let unvisitedNeighbs =
-            neighbs |> List.filter (fun n -> visited |> Set.contains n |> not)
+            neighbs
+            |> List.filter (fun n -> visited |> Set.contains n |> not)
 
-        let updatedWorkingList =            
+        let updatedWorkingList =
             unvisitedNeighbs
             |> List.map (fun (x, y) -> (x, y), (distanceCurrentLocation + (cave.[x, y])))
             |> List.fold updateWorkingList (workingList |> Heap.tail)
 
-        let newVisited = visited |> Set.union (unvisitedNeighbs |> Set.ofSeq)
+        let newVisited =
+            visited
+            |> Set.union (unvisitedNeighbs |> Set.ofSeq)
 
         shortestPaths cave target updatedWorkingList newVisited
 
+let grow cave =
+
+    let merge (nested: int [,] [,]) : int [,] =
+        let outerDim = Array2D.length1 nested
+        let innerDim = Array2D.length1 nested.[0, 0]
+
+        [ for outer in 0 .. outerDim - 1 do
+              for inner in 0 .. innerDim - 1 ->
+                  nested.[outer, 0..]
+                  |> Seq.collect (fun m -> m.[inner, 0..])
+                  |> Seq.toList ]
+        |> array2D
+
+    let offsets =
+        [ [ 0; 1; 2; 3; 4 ]
+          [ 1; 2; 3; 4; 5 ]
+          [ 2; 3; 4; 5; 6 ]
+          [ 3; 4; 5; 6; 7 ]
+          [ 4; 5; 6; 7; 8 ] ]
+        |> array2D
+
+    let wrap number =
+        if number > 9 then
+            number - 9
+        else
+            number
+
+    offsets
+    |> Array2D.map
+        (fun offset ->
+            cave
+            |> Array2D.map (fun el -> offset + el |> wrap))
+    |> merge
+
 let solve input =
-    let cave = parse input
+    let cave = input |> parse |> grow
 
     let dimension = (cave |> Array2D.length1) - 1
 
     let workingList =
-        [ 0, (0,0) ] //we start at origin with risk level 0
+        [ 0, (0, 0) ] //we start at origin with risk level 0
         |> Heap.ofSeq false //Aaaand we use a sorted priorityqueue/heap
 
     let target = (dimension, dimension)
@@ -91,13 +117,9 @@ let solve input =
 
     shortestDistance
 
-#time
-//YIKES: Real: 00:04:34.873, CPU: 00:04:19.750, GC gen0: 50663, gen1: 2447, gen2: 42
+//#time
+//Real: 00:00:00.105, CPU: 00:00:00.109, GC gen0: 38, gen1: 0, gen2: 0
 //solve input
-
-#r "nuget: Unquote"
-
-open Swensen.Unquote
 
 let run () =
     printf "Testing..."
@@ -130,8 +152,18 @@ let run () =
                        [ 7; 8; 9 ] ])
             (2, 2) = [ (1, 2); (2, 1) ] @>
 
-    test <@ solve example = 40 @>
+    test <@ solve example = 315 @>
+
+    test
+        <@ [ [ 8 ] ] |> array2D |> grow = ([ [ 8; 9; 1; 2; 3 ]
+                                             [ 9; 1; 2; 3; 4 ]
+                                             [ 1; 2; 3; 4; 5 ]
+                                             [ 2; 3; 4; 5; 6 ]
+                                             [ 3; 4; 5; 6; 7 ] ]
+                                           |> array2D) @>
 
     printfn "...done!"
 
 run ()
+
+solve input

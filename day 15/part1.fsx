@@ -37,33 +37,31 @@ let neighbours cave (x, y) =
 
 
 let updateWorkingList workingList (location, distance) =
-    workingList
-    |> Heap.insert (distance, location)
+    workingList |> Heap.insert (distance, location)
 
-let rec shortestPaths cave target (workingList : Heap<int*(int*int)>) visited =
+let rec shortestPaths cave target (workingList: Heap<int * (int * int)>) visited =
     //printfn "We still have to process %d locations" (workingList |> Heap.length)
 
 
-    let distanceCurrentLocation, currentLocation =
-        workingList
-        |> Heap.head
+    let distanceCurrentLocation, currentLocation = workingList |> Heap.head
 
     if currentLocation = target then //Stop, we're only interested in shortest path to target
         distanceCurrentLocation
     else
-        let neighbs = 
-            currentLocation
-            |> neighbours cave
+        let neighbs = currentLocation |> neighbours cave
 
         let unvisitedNeighbs =
-            neighbs |> List.filter (fun n -> visited |> Set.contains n |> not)
+            neighbs
+            |> List.filter (fun n -> visited |> Set.contains n |> not)
 
-        let updatedWorkingList =            
+        let updatedWorkingList =
             unvisitedNeighbs
             |> List.map (fun (x, y) -> (x, y), (distanceCurrentLocation + (cave.[x, y])))
             |> List.fold updateWorkingList (workingList |> Heap.tail)
 
-        let newVisited = visited |> Set.union (unvisitedNeighbs |> Set.ofSeq)
+        let newVisited =
+            visited
+            |> Set.union (unvisitedNeighbs |> Set.ofSeq)
 
         shortestPaths cave target updatedWorkingList newVisited
 
@@ -73,7 +71,7 @@ let solve input =
     let dimension = (cave |> Array2D.length1) - 1
 
     let workingList =
-        [ 0, (0,0) ] //we start at origin with risk level 0
+        [ 0, (0, 0) ] //we start at origin with risk level 0
         |> Heap.ofSeq false //Aaaand we use a sorted priorityqueue/heap
 
     let target = (dimension, dimension)
@@ -84,7 +82,7 @@ let solve input =
     shortestDistance
 
 #time
-//YIKES: Real: 00:04:34.873, CPU: 00:04:19.750, GC gen0: 50663, gen1: 2447, gen2: 42
+//YIKES: Real: 00:00:00.105, CPU: 00:00:00.109, GC gen0: 39, gen1: 0, gen2: 0
 //solve input
 
 #r "nuget: Unquote"
