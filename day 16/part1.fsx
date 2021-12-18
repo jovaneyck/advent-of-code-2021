@@ -2,20 +2,11 @@ let input =
     System.IO.File.ReadAllText $"{__SOURCE_DIRECTORY__}\input.txt"
 
 
-type OperatorType =
-    | Sum
-    | Product
-    | Minimum
-    | Maximum
-    | GreaterThan
-    | LessThan
-    | EqualTo
-
 type ParsedPacket =
     | LiteralValue of {| version: int64; number: int64 |}
     | Operator of
         {| version: int64
-           operator: OperatorType
+           operator: int64
            packets: ParsedPacket list |}
 
 type Mode =
@@ -52,16 +43,6 @@ let parseMode operatorPacket : Mode * string =
     | u, rem ->
         failwithf "Unknown operator packet length type ID %s, with remainder string: %A" u rem
 
-let parseOperator =
-    function
-    | 0L -> Sum
-    | 1L -> Product
-    | 2L -> Minimum
-    | 3L -> Maximum
-    | 5L -> GreaterThan
-    | 6L -> LessThan
-    | 7L -> EqualTo
-
 let rec parsePacket text =
     let versionText, remainder = text |> splitAt 3
     let version = versionText |> binToDec
@@ -80,7 +61,7 @@ let rec parsePacket text =
 
         Operator
             {| version = version
-               operator = parseOperator packetTypeId
+               operator = packetTypeId
                packets = subpackets |},
         rrremainder
 
@@ -135,31 +116,17 @@ let hexToBinary (text: string) : string =
     |> Seq.map (fun hexChar -> lookup |> Map.find hexChar)
     |> String.concat ""
 
-let rec apply operator packets =
-    match operator with
-    | Sum -> packets |> List.map evaluate |> List.reduce (+)
-    | Product -> packets |> List.map evaluate |> List.reduce (*)
-    | Minimum -> packets |> List.map evaluate |> List.min
-    | Maximum -> packets |> List.map evaluate |> List.max
-    | GreaterThan ->
-        let [ a; b ] = packets |> List.map evaluate
-        if a > b then 1L else 0L
-    | LessThan ->
-        let [ a; b ] = packets |> List.map evaluate
-        if a < b then 1L else 0L
-    | EqualTo ->
-        let [ a; b ] = packets |> List.map evaluate
-        if a = b then 1L else 0L
-
-and evaluate packet =
+let rec addVersions acc packet =
     match packet with
-    | LiteralValue lv -> lv.number
-    | Operator op -> apply op.operator op.packets
+    | LiteralValue v -> acc + v.version
+    | Operator o ->
+        let sub = o.packets |> List.fold addVersions 0L
+        acc + o.version + sub
 
 let solve text =
     let packet, _ = text |> hexToBinary |> parsePacket
 
-    packet |> evaluate
+    packet |> (addVersions 0)
 
 //solve input
 
@@ -184,7 +151,7 @@ let run () =
     test
         <@ parsePacket "00111000000000000110111101000101001010010001001000000000"
            |> fst = Operator
-                        {| operator = LessThan
+                        {| operator = 6
                            packets =
                                [ LiteralValue {| number = 10L; version = 6 |}
                                  LiteralValue {| number = 20L; version = 2 |} ]
@@ -193,21 +160,17 @@ let run () =
     test
         <@ parsePacket "11101110000000001101010000001100100000100011000001100000"
            |> fst = Operator
-                        {| operator = Maximum
+                        {| operator = 3
                            packets =
                                [ LiteralValue {| number = 1L; version = 2 |}
                                  LiteralValue {| number = 2L; version = 4 |}
                                  LiteralValue {| number = 3L; version = 1 |} ]
                            version = 7 |} @>
 
-    test <@ solve "C200B40A82" = 3L @>
-    test <@ solve "04005AC33890" = 54L @>
-    test <@ solve "880086C3E88112" = 7L @>
-    test <@ solve "CE00C43D881120" = 9L @>
-    test <@ solve "D8005AC2A8F0" = 1L @>
-    test <@ solve "F600BC2D8F" = 0L @>
-    test <@ solve "9C005AC2F8F0" = 0L @>
-    test <@ solve "9C0141080250320F1802104A08" = 1L @>
+    test <@ solve "8A004A801A8002F478" = 16L @>
+    test <@ solve "620080001611562C8802118E34" = 12L @>
+    test <@ solve "C0015000016115A2E0802F182340" = 23L @>
+    test <@ solve "A0016C880162017C3686B18A3D4780" = 31L @>
 
     printfn "...done!"
 
