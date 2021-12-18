@@ -135,17 +135,31 @@ let hexToBinary (text: string) : string =
     |> Seq.map (fun hexChar -> lookup |> Map.find hexChar)
     |> String.concat ""
 
-let rec addVersions acc packet =
+let rec apply operator packets =
+    match operator with
+    | Sum -> packets |> List.map evaluate |> List.reduce (+)
+    | Product -> packets |> List.map evaluate |> List.reduce (*)
+    | Minimum -> packets |> List.map evaluate |> List.min
+    | Maximum -> packets |> List.map evaluate |> List.max
+    | GreaterThan ->
+        let [ a; b ] = packets |> List.map evaluate
+        if a > b then 1L else 0L
+    | LessThan ->
+        let [ a; b ] = packets |> List.map evaluate
+        if a < b then 1L else 0L
+    | EqualTo ->
+        let [ a; b ] = packets |> List.map evaluate
+        if a = b then 1L else 0L
+
+and evaluate packet =
     match packet with
-    | LiteralValue v -> acc + v.version
-    | Operator o ->
-        let sub = o.packets |> List.fold addVersions 0L
-        acc + o.version + sub
+    | LiteralValue lv -> lv.number
+    | Operator op -> apply op.operator op.packets
 
 let solve text =
     let packet, _ = text |> hexToBinary |> parsePacket
 
-    packet |> (addVersions 0)
+    packet |> evaluate
 
 //solve input
 
@@ -186,10 +200,14 @@ let run () =
                                  LiteralValue {| number = 3L; version = 1 |} ]
                            version = 7 |} @>
 
-    test <@ solve "8A004A801A8002F478" = 16L @>
-    test <@ solve "620080001611562C8802118E34" = 12L @>
-    test <@ solve "C0015000016115A2E0802F182340" = 23L @>
-    test <@ solve "A0016C880162017C3686B18A3D4780" = 31L @>
+    test <@ solve "C200B40A82" = 3L @>
+    test <@ solve "04005AC33890" = 54L @>
+    test <@ solve "880086C3E88112" = 7L @>
+    test <@ solve "CE00C43D881120" = 9L @>
+    test <@ solve "D8005AC2A8F0" = 1L @>
+    test <@ solve "F600BC2D8F" = 0L @>
+    test <@ solve "9C005AC2F8F0" = 0L @>
+    test <@ solve "9C0141080250320F1802104A08" = 1L @>
 
     printfn "...done!"
 
