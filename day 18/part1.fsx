@@ -1,10 +1,9 @@
-#r "nuget: Unquote"
-open Swensen.Unquote
-
 #r "nuget: FParsec"
-open FParsec
-
 #r "nuget: FsCheck"
+#r "nuget: Unquote"
+
+open Swensen.Unquote
+open FParsec
 open FsCheck
 
 let input =
@@ -156,6 +155,7 @@ let ((Pair ((Value (leftSplosion, _), Value (rightSplosion, _)), _), path)) = ex
 
 //explosion
 //|> Zipper.apply (fun n -> Value(0, depth n))
+
 let check name prop =
     Check.One(
         name,
