@@ -83,18 +83,20 @@ module Zipper =
     type Path = Breadcrumb list
     type Zipper = (Number * Path)
 
-    let up (z: Zipper) : Zipper =
+    let up (z: Zipper) : Zipper option =
         let n, path = z
 
         match path with
-        | [] -> failwith "should we crash on an impossible up?"
-        | Left r :: ps -> (Pair((n, r), (depth n) - 1), ps)
-        | Right l :: ps -> (Pair((l, n), (depth n) - 1), ps)
+        | [] -> None
+        | Left r :: ps -> Some(Pair((n, r), (depth n) - 1), ps)
+        | Right l :: ps -> Some(Pair((l, n), (depth n) - 1), ps)
 
     let rec top (z: Zipper) : Zipper =
         match z with
         | _, [] -> z
-        | _ -> top (up z)
+        | _ ->
+            let (Some upper) = up z
+            top upper
 
     let left (z: Zipper) : Zipper =
         let n, path = z
@@ -109,6 +111,32 @@ module Zipper =
         match n with
         | Value _ -> failwith "Cannot descend a leaf node"
         | Pair ((l, r), _) -> r, (Right l :: path)
+
+    let rec tryLeftSibling (z: Zipper) : Zipper option =
+        let parent = z |> up
+
+        match parent with
+        | None -> None
+        | Some parent ->
+            let sibling = parent |> left
+
+            if sibling <> z then
+                Some sibling
+            else
+                tryLeftSibling parent
+
+    let rec tryRightSibling (z: Zipper) : Zipper option =
+        let parent = z |> up
+
+        match parent with
+        | None -> None
+        | Some parent ->
+            let sibling = parent |> right
+
+            if sibling <> z then
+                Some sibling
+            else
+                tryRightSibling parent
 
     let toNumber z : Number =
         let n, _ = top z
@@ -149,25 +177,13 @@ let (Some explosion) =
 let ((Pair ((Value (leftSplosion, _), Value (rightSplosion, _)), _), path)) = explosion
 (leftSplosion, rightSplosion, path)
 
-let rec tryFindLeftSibling (z: Zipper.Zipper) : Zipper.Zipper =
-    let parent = z |> Zipper.up
-    let sibling = parent |> Zipper.left
+let zeroValued =
+    explosion
+    |> Zipper.apply (fun n -> (Value(0, (depth n))))
 
-    if sibling <> z then
-        sibling
-    else
-        tryFindLeftSibling parent
-
-let rec tryFindRightSibling (z: Zipper.Zipper) : Zipper.Zipper =
-    let parent = z |> Zipper.up
-    let sibling = parent |> Zipper.right
-
-    if sibling <> z then
-        sibling
-    else
-        tryFindRightSibling parent
-
-"[1,2]" |> Parsers.parse
+match zeroValued |> Zipper.tryLeftSibling with
+| Some lefty -> lefty
+| None -> zeroValued
 
 //TODO: to do the exploding, we need to go up
 //but if we're in a left subtree we cannot just go up 1 and left 1
@@ -210,6 +226,7 @@ let run () =
                 |> Zipper.ofNumber
                 |> Zipper.left
                 |> Zipper.up
+                |> Option.get
                 |> Zipper.right
                 |> Zipper.toNumber
 
