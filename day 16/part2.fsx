@@ -2,20 +2,11 @@ let input =
     System.IO.File.ReadAllText $"{__SOURCE_DIRECTORY__}\input.txt"
 
 
-type OperatorType =
-    | Sum
-    | Product
-    | Minimum
-    | Maximum
-    | GreaterThan
-    | LessThan
-    | EqualTo
-
 type ParsedPacket =
     | LiteralValue of {| version: int64; number: int64 |}
     | Operator of
         {| version: int64
-           operator: OperatorType
+           operator: int64
            packets: ParsedPacket list |}
 
 type Mode =
@@ -52,16 +43,6 @@ let parseMode operatorPacket : Mode * string =
     | u, rem ->
         failwithf "Unknown operator packet length type ID %s, with remainder string: %A" u rem
 
-let parseOperator =
-    function
-    | 0L -> Sum
-    | 1L -> Product
-    | 2L -> Minimum
-    | 3L -> Maximum
-    | 5L -> GreaterThan
-    | 6L -> LessThan
-    | 7L -> EqualTo
-
 let rec parsePacket text =
     let versionText, remainder = text |> splitAt 3
     let version = versionText |> binToDec
@@ -80,7 +61,7 @@ let rec parsePacket text =
 
         Operator
             {| version = version
-               operator = parseOperator packetTypeId
+               operator = packetTypeId
                packets = subpackets |},
         rrremainder
 
@@ -170,7 +151,7 @@ let run () =
     test
         <@ parsePacket "00111000000000000110111101000101001010010001001000000000"
            |> fst = Operator
-                        {| operator = LessThan
+                        {| operator = 6
                            packets =
                                [ LiteralValue {| number = 10L; version = 6 |}
                                  LiteralValue {| number = 20L; version = 2 |} ]
@@ -179,7 +160,7 @@ let run () =
     test
         <@ parsePacket "11101110000000001101010000001100100000100011000001100000"
            |> fst = Operator
-                        {| operator = Maximum
+                        {| operator = 3
                            packets =
                                [ LiteralValue {| number = 1L; version = 2 |}
                                  LiteralValue {| number = 2L; version = 4 |}
