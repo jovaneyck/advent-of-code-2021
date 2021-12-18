@@ -9,10 +9,7 @@ open FsCheck
 let input =
     System.IO.File.ReadAllLines $"{__SOURCE_DIRECTORY__}\input.txt"
 
-let example =
-    @"".Split("\n") |> Array.map (fun s -> s.Trim())
-
-//Basically a binary tree
+//Snailnumber === binary tree
 type Depth = int
 
 type Number =
@@ -29,7 +26,7 @@ let depth: Number -> int =
     | Value (_, d) -> d
     | Pair (_, d) -> d
 
-module Parsers =
+module Parser =
     type PNumber =
         | PPair of PNumber * PNumber
         | PValue of int
@@ -188,43 +185,43 @@ module Zipper =
         let (node, path) = z
         (f node, path)
 
-let add (n: Number) (n2: Number) : Number = Pair((n, n2), depth n)
-
-let explodes: Number -> bool =
+let needsExplode: Number -> bool =
     function
-    | Pair ((Value _, Value _), 4) -> true
+    | Pair ((Value _, Value _), depth) when depth >= 4 -> true
     | _ -> false
 
 let explode explosion =
-    let ((Pair ((Value (leftSplosion, _), Value (rightSplosion, _)), _), _)) = explosion
+    match explosion with
+    | ((Pair ((Value (leftSplosion, _), Value (rightSplosion, _)), _), _)) ->
 
-    let zeroValued =
-        explosion
-        |> Zipper.apply (fun n -> (Value(0, (depth n))))
+        let zeroValued =
+            explosion
+            |> Zipper.apply (fun n -> (Value(0, (depth n))))
 
-    let leftApplied =
-        match zeroValued |> Zipper.tryLeftSibling with
-        | Some lefty ->
-            let (Some applied) =
-                lefty
+        let leftApplied =
+            match zeroValued |> Zipper.tryLeftSibling with
+            | Some lefty ->
+                let (Some applied) =
+                    lefty
+                    |> Zipper.apply
+                        (function
+                        | Value (v, d) -> Value(v + leftSplosion, d))
+                    |> Zipper.tryRightSibling
+
+                applied
+            | None -> zeroValued
+
+        let rightApplied =
+            match leftApplied |> Zipper.tryRightSibling with
+            | None -> leftApplied
+            | Some righty ->
+                righty
                 |> Zipper.apply
                     (function
-                    | Value (v, d) -> Value(v + leftSplosion, d))
-                |> Zipper.tryRightSibling
+                    | Value (v, d) -> Value(v + rightSplosion, d))
 
-            applied
-        | None -> zeroValued
-
-    let rightApplied =
-        match leftApplied |> Zipper.tryRightSibling with
-        | None -> leftApplied
-        | Some righty ->
-            righty
-            |> Zipper.apply
-                (function
-                | Value (v, d) -> Value(v + rightSplosion, d))
-
-    rightApplied
+        rightApplied
+    | _ -> failwith "Never expected to explode this thing"
 
 let needsSplit (n: Number) =
     match n with
@@ -238,17 +235,36 @@ let split (n: Number) =
 
 let handleSplit (z: Zipper.Zipper) = z |> Zipper.apply split
 
-let rec reduceSplits (z: Zipper.Zipper) =
+let rec reduce (z: Zipper.Zipper) =
+    match z |> Zipper.tryFind needsExplode with
+    | Some explosion -> explosion |> explode |> Zipper.top |> reduce
+    | None -> z |> Zipper.top |> reduceSplits
+
+and reduceSplits (z: Zipper.Zipper) =
     let nextSplit = z |> Zipper.tryFind needsSplit
 
     match nextSplit with
     | None -> z
     | Some s -> s |> handleSplit |> Zipper.top |> reduce
 
-and reduce (z: Zipper.Zipper) =
-    match z |> Zipper.tryFind explodes with
-    | Some explosion -> explosion |> explode |> Zipper.top |> reduce
-    | None -> z |> Zipper.top |> reduceSplits
+let add (n: Number) (n2: Number) : Number =
+    let rec bury (n: Number) =
+        match n with
+        | Value (v, d) -> Value(v, d + 1)
+        | Pair ((l, r), d) -> Pair((bury l, bury r), d + 1)
+
+    Pair((bury n, bury n2), depth n)
+    |> Zipper.ofNumber
+    |> reduce
+    |> Zipper.toNumber
+
+let sum numbers = numbers |> Seq.reduce add
+
+
+let rec magnitude (n: Number) : uint64 =
+    match n with
+    | Value (v, _) -> uint64 v
+    | Pair ((l, r), _) -> 3UL * (magnitude l) + 2UL * (magnitude r)
 
 [<AutoOpen>]
 module Tests =
@@ -262,9 +278,9 @@ module Tests =
 
     let tSingleExplode number =
         number
-        |> Parsers.parse
+        |> Parser.parse
         |> Zipper.ofNumber
-        |> Zipper.tryFind explodes
+        |> Zipper.tryFind needsExplode
         |> Option.get
         |> explode
         |> Zipper.toNumber
@@ -272,17 +288,17 @@ module Tests =
 
     let run () =
         printf "Testing..."
-        test <@ Parsers.parse "123" = Value(123, 0) @>
-        test <@ Parsers.parse "[1,2]" = Pair((Value(1, 1), Value(2, 1)), 0) @>
+        test <@ Parser.parse "123" = Value(123, 0) @>
+        test <@ Parser.parse "[1,2]" = Pair((Value(1, 1), Value(2, 1)), 0) @>
 
         test
-            <@ Parsers.parse "[1,[3,4]]" = Pair(
+            <@ Parser.parse "[1,[3,4]]" = Pair(
                 (Value(1, 1), Pair((Value(3, 2), Value(4, 2)), 1)),
                 0
             ) @>
 
         test
-            <@ Parsers.parse "[[3,4],[[5,6],7]]" = Pair(
+            <@ Parser.parse "[[3,4],[[5,6],7]]" = Pair(
                 (Pair((Value(3, 2), Value(4, 2)), 1),
                  Pair((Pair((Value(5, 3), Value(6, 3)), 2), Value(7, 2)), 1)),
                 0
@@ -290,9 +306,9 @@ module Tests =
 
         check
             "Traversing a zipper leaves the snailnumber intact"
-            (fun (n: Parsers.PNumber) ->
+            (fun (n: Parser.PNumber) ->
                 let definitePair =
-                    Parsers.PPair(n, n) |> Parsers.annotateDepth
+                    Parser.PPair(n, n) |> Parser.annotateDepth
 
                 let walkedAround =
                     definitePair
@@ -322,17 +338,63 @@ module Tests =
         test <@ split (Value(12, 666)) = Pair((Value(6, 667), Value(6, 667)), 666) @>
 
         test
-            <@ add ("[[[[4,3],4],4],[7,[[8,4],9]]]" |> Parsers.parse) ("[1,1]" |> Parsers.parse)
-               |> print = "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]" @>
-
-        test
             <@ "[[[[[4,3],4],4],[7,[[8,4],9]]],[1,1]]"
-               |> Parsers.parse
+               |> Parser.parse
                |> Zipper.ofNumber
                |> reduce
                |> Zipper.toNumber
                |> print = "[[[[0,7],4],[[7,8],[6,0]]],[8,1]]" @>
 
+        test
+            <@ [ "[1,1]"; "[2,2]"; "[3,3]"; "[4,4]" ]
+               |> Seq.map Parser.parse
+               |> sum
+               |> print = "[[[[1,1],[2,2]],[3,3]],[4,4]]" @>
+
+        test
+            <@ [ "[1,1]"
+                 "[2,2]"
+                 "[3,3]"
+                 "[4,4]"
+                 "[5,5]" ]
+               |> Seq.map Parser.parse
+               |> sum
+               |> print = "[[[[3,0],[5,3]],[4,4]],[5,5]]" @>
+
+        test
+            <@ [ "[1,1]"
+                 "[2,2]"
+                 "[3,3]"
+                 "[4,4]"
+                 "[5,5]"
+                 "[6,6]" ]
+               |> Seq.map Parser.parse
+               |> sum
+               |> print = "[[[[5,0],[7,4]],[5,5]],[6,6]]" @>
+
+        test
+            <@ [ "[[[0,[4,5]],[0,0]],[[[4,5],[2,6]],[9,5]]]"
+                 "[7,[[[3,7],[4,3]],[[6,3],[8,8]]]]"
+                 "[[2,[[0,8],[3,4]]],[[[6,7],1],[7,[1,6]]]]"
+                 "[[[[2,4],7],[6,[0,5]]],[[[6,8],[2,8]],[[2,1],[4,5]]]]"
+                 "[7,[5,[[3,8],[1,4]]]]"
+                 "[[2,[2,2]],[8,[8,1]]]"
+                 "[2,9]"
+                 "[1,[[[9,3],9],[[9,0],[0,7]]]]"
+                 "[[[5,[7,4]],7],1]"
+                 "[[[[4,2],2],6],[8,7]]" ]
+               |> Seq.map Parser.parse
+               |> sum
+               |> print = "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]" @>
+
         printfn "...done!"
 
 Tests.run ()
+
+input
+|> Array.map Parser.parse
+|> Array.reduce add
+|> Zipper.ofNumber
+|> reduce
+|> Zipper.toNumber
+|> magnitude
