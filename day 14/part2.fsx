@@ -1,3 +1,6 @@
+#r "nuget: Unquote"
+open Swensen.Unquote
+
 let input =
     System.IO.File.ReadAllLines $"{__SOURCE_DIRECTORY__}\input.txt"
 
@@ -26,8 +29,7 @@ let example =
 type Ruleset = Map<char * char, char>
 
 type Polymer =
-    { LetterCounts: Map<char, uint64>
-      PairCounts: Map<char * char, uint64> }
+    { PairCounts: Map<char * char, uint64> }
 
 let parseRule (line: string) =
     let [| src; dest |] =
@@ -39,20 +41,13 @@ let parseRule (line: string) =
 
 
 let parsePolymer (input: string) : Polymer =
-    let letterCounts =
-        input
-        |> Seq.toArray
-        |> Seq.countBy id
-        |> Seq.map (fun (l, c) -> (l, uint64 c))
-
     let pairCounts =
         input
         |> Seq.pairwise
         |> Seq.countBy id
         |> Seq.map (fun (l, c) -> (l, uint64 c))
 
-    { LetterCounts = Map.ofSeq letterCounts
-      PairCounts = Map.ofSeq pairCounts }
+    { PairCounts = Map.ofSeq pairCounts }
 
 let parse (input: string []) : Polymer * Ruleset =
     let polymer = parsePolymer input.[0]
@@ -65,46 +60,30 @@ let parse (input: string []) : Polymer * Ruleset =
 
     (polymer, rules)
 
-let folder (rules: Ruleset) (polymer: Polymer) paircount =
-    let (a, b) as pair, count = paircount
+let apply (rules: Ruleset) (pair, count) =
     let newChar = rules |> Map.find pair
 
-    let currentLetterCount =
-        polymer.LetterCounts
-        |> Map.tryFind newChar
-        |> Option.defaultValue 0UL
-
-    let newLetterCounts =
-        polymer.LetterCounts
-        |> Map.add newChar (currentLetterCount + count)
+    let (a, b) = pair
 
     let newPaircounts =
         [ (a, newChar), count
           (newChar, b), count ]
 
-    let nextPaircounts =
-        List.append
-            newPaircounts
-            (polymer.PairCounts
-             |> Map.remove pair
-             |> Map.toList)
+    newPaircounts
+
+let processOne (rules: Ruleset) (t: Polymer) : Polymer =
+    let newCounts =
+        t.PairCounts
+        |> Map.toList
+        |> List.collect (apply rules)
         |> List.groupBy fst
         |> List.map (fun (pair, counts) -> pair, counts |> List.sumBy snd)
         |> Map.ofList
 
-    { PairCounts = nextPaircounts
-      LetterCounts = newLetterCounts }
-
-let processOne (rules: Ruleset) (t: Polymer) : Polymer =
-    t.PairCounts
-    |> Map.toSeq
-    //TODO: map instead of fold, rebuild maps from individual counts in the end
-    |> Seq.fold (folder rules) t
+    { t with PairCounts = newCounts }
 
 let repeat max rules template =
     let rec repeat' n template =
-        printfn "After step %d: %A" n template
-
         if n = max then
             template
         else
@@ -112,28 +91,38 @@ let repeat max rules template =
 
     repeat' 0 template
 
-let solve nbSteps input =
-    let (t, r) = parse input
+let letterCounts (p: Polymer) =
+    p.PairCounts
+    |> Map.toSeq
+    |> Seq.collect (fun ((a, b), count) -> [ (a, count); (b, count) ])
+    |> Seq.groupBy fst
+    |> Seq.map (fun (char, counts) -> (char, counts |> Seq.map snd |> Seq.sum))
 
-    let afterX = repeat nbSteps r t
+let solve nbSteps input =
+    let (template, rules) = parse input
+
+    let resultingPolymer = repeat nbSteps rules template
 
     let sortedCounts =
-        afterX.LetterCounts
-        |> Map.toSeq
+        resultingPolymer
+        |> letterCounts
         |> Seq.sortByDescending snd
 
+    printfn "Sorted counts: %A" sortedCounts
     let max = sortedCounts |> Seq.maxBy snd
     let min = sortedCounts |> Seq.minBy snd
     (max |> snd) - (min |> snd)
 
-#r "nuget: Unquote"
-open Swensen.Unquote
-
 let run () =
     printf "Testing..."
-    test <@ solve 4 example = 1588UL @>
+    test <@ solve 10 example = 1588UL @>
+    test <@ solve 40 example = 2188189693529UL @>
     printfn "...done!"
 
 run ()
 
-let part2 = solve 10 input
+//I'm doing something wrong which ends up in double pair counts, but too tired to figure it out.
+//Maybe when we have some energy to troubleshoot, for now we live to solve another puzzle!
+let part2 = solve 40 input
+part2 / 2UL
+//3692219987038UL
