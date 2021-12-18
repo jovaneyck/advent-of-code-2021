@@ -266,6 +266,19 @@ let rec magnitude (n: Number) : uint64 =
     | Value (v, _) -> uint64 v
     | Pair ((l, r), _) -> 3UL * (magnitude l) + 2UL * (magnitude r)
 
+
+let solve input =
+    let combos numbers =
+        [ for i in 0 .. (numbers |> Array.length) - 1 do
+              for j in i .. (numbers |> Array.length) - 1 -> numbers.[i], numbers.[j] ]
+
+    input
+    |> Array.map Parser.parse
+    |> combos
+    |> List.map (fun (one, other) -> add one other)
+    |> List.map magnitude
+    |> List.max
+
 [<AutoOpen>]
 module Tests =
     let check name prop =
@@ -387,17 +400,8 @@ module Tests =
                |> sum
                |> print = "[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]" @>
 
+        test <@ solve input = 4763UL @>
+
         printfn "...done!"
 
 Tests.run ()
-
-let combos numbers =
-    [ for i in 0 .. (numbers |> Array.length) - 1 do
-          for j in i .. (numbers |> Array.length) - 1 -> numbers.[i], numbers.[j] ]
-
-input
-|> Array.map Parser.parse
-|> combos
-|> List.map (fun (one, other) -> add one other)
-|> List.map magnitude
-|> List.max
