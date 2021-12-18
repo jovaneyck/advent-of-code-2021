@@ -66,7 +66,7 @@ module Parsers =
         | Success (result, _, _) -> result
         | failure -> failwithf "%A" failure
 
-    let run textToParse =
+    let parse textToParse =
         runParser pSnailNumber textToParse
         |> annotateDepth
 
@@ -142,12 +142,32 @@ let explodes: Number -> bool =
     | _ -> false
 
 let (Some explosion) =
-    (Parsers.run "[[6,[5,[4,[3,2]]]],1]")
+    (Parsers.parse "[[6,[5,[4,[3,2]]]],1]")
     |> Zipper.ofNumber
     |> Zipper.tryFind explodes
 
 let ((Pair ((Value (leftSplosion, _), Value (rightSplosion, _)), _), path)) = explosion
 (leftSplosion, rightSplosion, path)
+
+let rec tryFindLeftSibling (z: Zipper.Zipper) : Zipper.Zipper =
+    let parent = z |> Zipper.up
+    let sibling = parent |> Zipper.left
+
+    if sibling <> z then
+        sibling
+    else
+        tryFindLeftSibling parent
+
+let rec tryFindRightSibling (z: Zipper.Zipper) : Zipper.Zipper =
+    let parent = z |> Zipper.up
+    let sibling = parent |> Zipper.right
+
+    if sibling <> z then
+        sibling
+    else
+        tryFindRightSibling parent
+
+"[1,2]" |> Parsers.parse
 
 //TODO: to do the exploding, we need to go up
 //but if we're in a left subtree we cannot just go up 1 and left 1
@@ -166,13 +186,14 @@ let check name prop =
 
 let run () =
     printf "Testing..."
-    test <@ Parsers.run "123" = Value(123, 0) @>
-    test <@ Parsers.run "[1,2]" = Pair((Value(1, 1), Value(2, 1)), 0) @>
-
-    test <@ Parsers.run "[1,[3,4]]" = Pair((Value(1, 1), Pair((Value(3, 2), Value(4, 2)), 1)), 0) @>
+    test <@ Parsers.parse "123" = Value(123, 0) @>
+    test <@ Parsers.parse "[1,2]" = Pair((Value(1, 1), Value(2, 1)), 0) @>
 
     test
-        <@ Parsers.run "[[3,4],[[5,6],7]]" = Pair(
+        <@ Parsers.parse "[1,[3,4]]" = Pair((Value(1, 1), Pair((Value(3, 2), Value(4, 2)), 1)), 0) @>
+
+    test
+        <@ Parsers.parse "[[3,4],[[5,6],7]]" = Pair(
             (Pair((Value(3, 2), Value(4, 2)), 1),
              Pair((Pair((Value(5, 3), Value(6, 3)), 2), Value(7, 2)), 1)),
             0
