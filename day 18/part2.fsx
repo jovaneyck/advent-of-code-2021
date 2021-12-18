@@ -391,7 +391,13 @@ module Tests =
 
 Tests.run ()
 
+let combos numbers =
+    [ for i in 0 .. (numbers |> Array.length) - 1 do
+          for j in i .. (numbers |> Array.length) - 1 -> numbers.[i], numbers.[j] ]
+
 input
 |> Array.map Parser.parse
-|> Array.reduce add
-|> magnitude
+|> combos
+|> List.map (fun (one, other) -> add one other)
+|> List.map magnitude
+|> List.max
