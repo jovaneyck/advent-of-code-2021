@@ -319,9 +319,10 @@ module Tests =
 
         check
             "Traversing a zipper leaves the snailnumber intact"
-            (fun (n: Parser.PNumber) ->
+            (fun (nLeft: Parser.PNumber) (nRight: Parser.PNumber) ->
                 let definitePair =
-                    Parser.PPair(n, n) |> Parser.annotateDepth
+                    Parser.PPair(nLeft, nRight)
+                    |> Parser.annotateDepth
 
                 let walkedAround =
                     definitePair
