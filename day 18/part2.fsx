@@ -279,6 +279,9 @@ let solve input =
     |> List.map magnitude
     |> List.max
 
+#time //Real: 00:00:01.985, CPU: 00:00:01.484, GC gen0: 423, gen1: 1, gen2: 0
+solve input
+
 [<AutoOpen>]
 module Tests =
     let check name prop =
