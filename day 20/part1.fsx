@@ -4,18 +4,30 @@ open Swensen.Unquote
 type Algorithm = char []
 type Image = Map<int * int, char>
 
-let shrink (i: Image) : Image = i |> Map.filter (fun k v -> v = '#')
+//Bah, this took me a while to figure out
+//the example has a subtle difference to my actual input:
+//The actual input has a "#" rule for the 000000000 number so every dark pixel in the infinite space lights up
+//Accordingly, every 111111111 rule falls back into darkness '.'
+//We keep track of the "infiniteness" by tracking the "state of all infinite pixels" explicitly
+type State =
+    { algorithm: Algorithm
+      image: Image
+      infinitePixelsState: char }
 
-let parse (text: string []) : (Algorithm * Image) =
+//let shrink (i: Image) : Image = i |> Map.filter (fun k v -> v = '#')
+
+let parse (text: string []) : State =
     let algorithm = text.[0] |> Seq.toArray
 
     let image =
         [ for r, row in (text |> Array.skip 2 |> Array.indexed) do
               for c, pixel in row |> Seq.indexed -> ((r, c), pixel) ]
         |> Map.ofSeq
-        |> shrink
+    //|> shrink
 
-    algorithm, image
+    { algorithm = algorithm
+      image = image
+      infinitePixelsState = '.' }
 
 let neighbourLocations (r, c) =
     [ (-1, -1)
@@ -29,10 +41,10 @@ let neighbourLocations (r, c) =
       (1, 1) ]
     |> List.map (fun (dr, dc) -> (r + dr, c + dc))
 
-let pixelAt (image: Image) location =
+let pixelAt defaultInfinite (image: Image) location =
     image
     |> Map.tryFind location
-    |> Option.defaultValue '.'
+    |> Option.defaultValue defaultInfinite
 
 let toBinary (chars: char list) =
     chars
@@ -47,26 +59,41 @@ let toDecimal (binary: string) = System.Convert.ToInt32(binary, 2)
 let apply (algorithm: Algorithm) binary = algorithm.[binary]
 let applyUpdate image (loc, pixel) = image |> Map.add loc pixel
 
-let enhancePixelAt algorithm image location =
+let enhancePixelAt state location =
     location
     |> neighbourLocations
-    |> List.map (pixelAt image)
-    |> (toBinary >> toDecimal >> (apply algorithm))
+    |> List.map (pixelAt state.infinitePixelsState state.image)
+    |> (toBinary >> toDecimal >> (apply state.algorithm))
 
-let enhance algorithm image =
+let nextInfinite (state: State) =
+    if state.algorithm.[0] = '.' then
+        '.'
+    else
+        match state.infinitePixelsState with
+        | '.' -> '#'
+        | _ -> '.'
+
+let enhance state =
     let interestingLocations =
-        image
+        state.image
         |> Map.keys
         |> Seq.toList
         |> Seq.collect neighbourLocations
         |> Seq.distinct
 
-    interestingLocations
-    |> Seq.map (fun loc -> loc, enhancePixelAt algorithm image loc)
-    |> Seq.fold applyUpdate image
-    |> shrink
+    let nextImage =
+        interestingLocations
+        |> Seq.map (fun loc -> loc, enhancePixelAt state loc)
+        |> Seq.fold applyUpdate state.image
+    //|> shrink
 
-let print (image: Image) : string =
+    { state with
+          image = nextImage
+          infinitePixelsState = nextInfinite state }
+
+let print (state: State) : string =
+    let image = state.image
+
     let minRow =
         image |> Map.keys |> Seq.map fst |> Seq.min
 
@@ -80,7 +107,9 @@ let print (image: Image) : string =
         image |> Map.keys |> Seq.map snd |> Seq.max
 
     [ for row in minRow .. maxRow do
-          [ for col in minCol .. maxCol -> pixelAt image (row, col) |> string ]
+          [ for col in minCol .. maxCol ->
+                pixelAt state.infinitePixelsState image (row, col)
+                |> string ]
           |> String.concat "" ]
     |> String.concat "\n"
 
@@ -98,18 +127,18 @@ let example =
         .Split("\n")
     |> Array.map (fun s -> s.Trim())
 
-let (algorithm, image) = parse input
-let enhance' = enhance algorithm
-let enhancedOnce = image |> enhance'
-let enhancedTwice = enhancedOnce |> enhance'
+let state = parse input
+let enhancedOnce = state |> enhance
+let enhancedTwice = enhancedOnce |> enhance
+
+//enhancedOnce |> print |> printfn "%s"
+//enhancedTwice |> print |> printfn "%s"
+
 
 let part1 =
-    enhancedTwice
+    enhancedTwice.image
     |> Map.filter (fun k v -> v = '#')
     |> Map.count
-//wrong guesses: 5366
-
-image |> print |> printfn "%s"
 
 let run () =
     printf "Testing..."
