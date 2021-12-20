@@ -413,8 +413,10 @@ Tests.run ()
 
 let n = "[[1,2],[3,4]]" |> Parser.parse
 
-//Zipper?
-//Navigating a zipper
-//Updating a zipper
-//Unzipping a zipper
-//Finding the left/right leaf node for explodes
+n
+|> Zipper.ofNumber
+|> Zipper.left
+|> Option.get
+|> Zipper.right
+|> Option.get
+|> Zipper.tryLeftSibling
