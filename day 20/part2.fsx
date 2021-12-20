@@ -45,10 +45,10 @@ let neighbourLocations (r, c) =
       (1, 1) ]
     |> List.map (fun (dr, dc) -> (r + dr, c + dc))
 
-let pixelAt defaultInfinite (image: Image) location =
-    image
+let pixelAt state location =
+    state.image
     |> Map.tryFind location
-    |> Option.defaultValue defaultInfinite
+    |> Option.defaultValue state.infinitePixelsState
 
 let toBinary (chars: char list) =
     chars
@@ -66,10 +66,10 @@ let applyUpdate image (loc, pixel) = image |> Map.add loc pixel
 let enhancePixelAt state location =
     location
     |> neighbourLocations
-    |> List.map (pixelAt state.infinitePixelsState state.image)
+    |> List.map (pixelAt state)
     |> (toBinary >> toDecimal >> (apply state.algorithm))
 
-let nextInfinite (state: State) =
+let nextInfiniteState (state: State) =
     if state.algorithm.[0] = '.' then
         '.'
     else
@@ -92,7 +92,7 @@ let enhance state =
 
     { state with
           image = nextImage
-          infinitePixelsState = nextInfinite state }
+          infinitePixelsState = nextInfiniteState state }
     |> shrink
 
 let print (state: State) : string =
@@ -111,9 +111,7 @@ let print (state: State) : string =
         image |> Map.keys |> Seq.map snd |> Seq.max
 
     [ for row in minRow .. maxRow do
-          [ for col in minCol .. maxCol ->
-                pixelAt state.infinitePixelsState image (row, col)
-                |> string ]
+          [ for col in minCol .. maxCol -> pixelAt state (row, col) |> string ]
           |> String.concat "" ]
     |> String.concat "\n"
 
