@@ -260,7 +260,6 @@ let add (n: Number) (n2: Number) : Number =
 
 let sum numbers = numbers |> Seq.reduce add
 
-
 let rec magnitude (n: Number) : uint64 =
     match n with
     | Value (v, _) -> uint64 v
@@ -409,3 +408,13 @@ module Tests =
         printfn "...done!"
 
 Tests.run ()
+
+//Let's play with Zippers!
+
+let n = "[[1,2],[3,4]]" |> Parser.parse
+
+//Zipper?
+//Navigating a zipper
+//Updating a zipper
+//Unzipping a zipper
+//Finding the left/right leaf node for explodes
