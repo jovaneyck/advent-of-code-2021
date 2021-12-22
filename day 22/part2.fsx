@@ -111,7 +111,58 @@ let solve input =
 
     onCount
 
-solve input
+
+let instructions = input |> Array.map parseInstruction
+
+let onInstructions =
+    instructions
+    |> Seq.filter (fun i -> i.command = On)
+
+let minX =
+    onInstructions
+    |> Seq.map (fun i -> fst i.cuboid.X)
+    |> Seq.min
+
+let maxX =
+    onInstructions
+    |> Seq.map (fun i -> snd i.cuboid.X)
+    |> Seq.max
+
+let minY =
+    onInstructions
+    |> Seq.map (fun i -> fst i.cuboid.Y)
+    |> Seq.min
+
+let maxY =
+    onInstructions
+    |> Seq.map (fun i -> snd i.cuboid.Y)
+    |> Seq.max
+
+let minZ =
+    onInstructions
+    |> Seq.map (fun i -> fst i.cuboid.Z)
+    |> Seq.min
+
+let maxZ =
+    onInstructions
+    |> Seq.map (fun i -> snd i.cuboid.Z)
+    |> Seq.max
+
+(maxX - minX, maxY - minY, maxZ - minZ)
+onInstructions |> Seq.length
+#time
+
+let allOnPoints =
+    onInstructions
+    |> Seq.fold
+        (fun s instruction ->
+            printfn "Handling instruction %A" instruction
+
+            instruction.cuboid
+            |> allCoordinates
+            |> Set.ofSeq
+            |> Set.union s)
+        Set.empty
 
 let run () =
     printf "Testing..."
