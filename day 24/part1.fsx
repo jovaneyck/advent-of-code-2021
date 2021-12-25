@@ -79,66 +79,89 @@ let readValue value programState =
     | Literal v -> v
     | Variable name -> read name programState
 
-let runInstruction (state: State) (i: Instruction) =
-    match i with
-    | Inp v ->
-        let next = state.input |> List.head
+let memo =
+    new System.Collections.Generic.Dictionary<int * ProgramState * Input, State>()
 
-        { state with
-              input = state.input |> List.tail
-              programState = state.programState |> write v next }
-    | Add (a, b) ->
-        let valA = state.programState |> read a
-        let valB = state.programState |> readValue b
-        let result = valA + valB
+let runInstruction (state: State) (instructionPointer: int, i: Instruction) =
+    let key =
+        instructionPointer, state.programState, state.input
 
-        { state with
-              programState = state.programState |> write a result }
-    | Div (a, b) ->
-        let valA = state.programState |> read a
-        let valB = state.programState |> readValue b
-        let result = valA / valB
+    match memo.TryGetValue key with
+    | true, result ->
+        //printfn "CACHE HIT"
+        result
+    | _ ->
+        let result =
+            match i with
+            | Inp v ->
+                let next = state.input |> List.head
 
-        { state with
-              programState = state.programState |> write a result }
-    | Eql (a, b) ->
-        let valA = state.programState |> read a
-        let valB = state.programState |> readValue b
-        let result = if valA = valB then 1L else 0L
+                { state with
+                      input = state.input |> List.tail
+                      programState = state.programState |> write v next }
+            | Add (a, b) ->
+                let valA = state.programState |> read a
+                let valB = state.programState |> readValue b
+                let result = valA + valB
 
-        { state with
-              programState = state.programState |> write a result }
-    | Mod (a, b) ->
-        let valA = state.programState |> read a
-        let valB = state.programState |> readValue b
-        let result = valA % valB
+                { state with
+                      programState = state.programState |> write a result }
+            | Div (a, b) ->
+                let valA = state.programState |> read a
+                let valB = state.programState |> readValue b
+                let result = valA / valB
 
-        { state with
-              programState = state.programState |> write a result }
-    | Mul (a, b) ->
-        let valA = state.programState |> read a
-        let valB = state.programState |> readValue b
-        let result = valA * valB
+                { state with
+                      programState = state.programState |> write a result }
+            | Eql (a, b) ->
+                let valA = state.programState |> read a
+                let valB = state.programState |> readValue b
+                let result = if valA = valB then 1L else 0L
 
-        { state with
-              programState = state.programState |> write a result }
+                { state with
+                      programState = state.programState |> write a result }
+            | Mod (a, b) ->
+                let valA = state.programState |> read a
+                let valB = state.programState |> readValue b
+                let result = valA % valB
+
+                { state with
+                      programState = state.programState |> write a result }
+            | Mul (a, b) ->
+                let valA = state.programState |> read a
+                let valB = state.programState |> readValue b
+                let result = valA * valB
+
+                { state with
+                      programState = state.programState |> write a result }
+
+        memo.Add(key, result)
+
+        result
 
 let runProgram input program =
+    //printfn "%A" input
+
     let init =
         { input = input
           programState = (0L, 0L, 0L, 0L) }
 
-    program |> List.fold runInstruction init
+    program
+    |> List.indexed
+    |> List.fold runInstruction init
 
 let run () =
     printf "Testing..."
     test <@ parseInstruction "inp 33" = ("33" |> VariableName |> Inp) @>
     test <@ "add z w" |> parseInstruction = Add(VariableName "z", Variable(VariableName "w")) @>
     test <@ "add z 25" |> parseInstruction = Add(VariableName "z", Literal 25) @>
+    memo.Clear()
 
     test
         <@ [ "inp z" ] |> parse |> runProgram [ 25; 26 ] = { programState = (0L, 0L, 0L, 25L)
                                                              input = [ 26L ] } @>
+
+    memo.Clear()
 
     test
         <@ [ "inp x"; "inp y"; "add x y" ]
@@ -146,11 +169,15 @@ let run () =
            |> runProgram [ 25; 26 ] = { programState = (0L, 51L, 26L, 0L)
                                         input = [] } @>
 
+    memo.Clear()
+
     test
         <@ [ "inp x"; "add x 3" ]
            |> parse
            |> runProgram [ 25 ] = { programState = (0L, 28L, 0L, 0L)
                                     input = [] } @>
+
+    memo.Clear()
 
     test
         <@ example_three_times_larger
@@ -158,6 +185,8 @@ let run () =
            |> runProgram [ 10; 30 ]
            |> getProgramState
            |> read (VariableName "z") = 1L @>
+
+    memo.Clear()
 
     test
         <@ example_three_times_larger
@@ -206,13 +235,19 @@ let numbers =
                                                                   fourteen ]
     }
 
+
+memo.Clear()
+
+#time
+
 let result =
     numbers
     |> Seq.find
         (fun number ->
-            printfn "%A" number
             let result = runProgram number monad
 
             result
             |> getProgramState
             |> read (VariableName "z") = 0)
+
+result |> Seq.map string |> String.concat ""
